@@ -108,13 +108,33 @@ Use the current P.R.I.M.E. brand language reflected in the product and screensho
 - Archivo
 
 ### Color Palette
-- Off-White: `#F9FAFB`
-- Concrete Grey: `#F5F6F7`
-- Charcoal: `#1E1E1E`
-- Primary Accent Blue: `#2563EB`
-- Mint Green: `#A7F3D0`
-- Deep Accent: `#1E3A8A`
-- P.R.I.M.E. Accent Purple: `#4639CA`
+
+#### Core Colors (Brand Identity)
+- Primary (Deep Navy): `#0B1F3A`
+- Primary Action Blue: `#3A7DFF`
+- Secondary Blue (Hover / Active): `#2563EB`
+
+#### Intelligence Accent (AI / System)
+- Teal Accent: `#14B8A6`
+
+#### Background & Surfaces
+- Background (App Base): `#F7F9FC`
+- Surface (Cards / Panels): `#FFFFFF`
+- Subtle Surface (Alt Sections): `#EEF2F7`
+
+#### Text Colors
+- Primary Text: `#111827`
+- Secondary Text: `#6B7280`
+- Muted Text: `#9CA3AF`
+
+#### Financial Status Colors
+- Success (Safe / On Track): `#22C55E`
+- Warning (Risk / Attention): `#F59E0B`
+- Danger (Not Safe): `#EF4444`
+
+#### Borders & UI Details
+- Border Light: `#E5E7EB`
+- Border Subtle: `#D1D5DB`
 
 ### Usage Guidance
 - Off-White for page background

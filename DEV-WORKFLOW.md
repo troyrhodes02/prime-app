@@ -45,15 +45,15 @@ Each skill should only be used when it meaningfully improves:
 
 | Skill | Use When |
 | --- | --- |
-| `/design-doc` | Feature has UI/UX complexity or multiple states |
-| `/ui-design` | Visual fidelity and layout clarity matter |
+| `/prime-design-doc` | Feature has UI/UX complexity or multiple states |
+| `/prime-ui-design` | Visual fidelity and layout clarity matter |
 | `/prime-spec` | Backend, financial logic, APIs, or data models are involved |
-| `/aria-insight-design` → *(optional future `/prime-decision-design`)* | Feature creates or depends on decision outputs |
-| `/aria-onboarding-flow` | Feature affects onboarding or time-to-value |
-| `/aria-landing-design` | Feature should be reflected on landing page |
-| `/aria-security-review` | Feature touches financial data or integrations |
-| `/ticket-worker` | Always used for implementation |
-| `/review-audit` | Always used after PR review |
+| `/prime-insight-design` | Feature creates or depends on decision outputs |
+| `/prime-onboarding-flow` | Feature affects onboarding or time-to-value |
+| `/prime-landing-design` | Feature should be reflected on landing page |
+| `/prime-security-review` | Feature touches financial data or integrations |
+| `/prime-ticket-worker` | Always used for implementation |
+| `/prime-review-audit` | Always used after PR review |
 
 ---
 
@@ -74,7 +74,7 @@ Defines what the user sees and how decisions are presented.
 **Claude — Step 2 *(Optional)***
 
 ```
-/design-doc generate a design doc from this pitch
+/prime-design-doc generate a design doc from this pitch
 ```
 
 Use when: multiple screens exist, decision clarity depends on layout, or interaction complexity exists.
@@ -82,7 +82,7 @@ Use when: multiple screens exist, decision clarity depends on layout, or interac
 **Claude — Step 3 *(Optional)***
 
 ```
-/ui-design generate a pixel-perfect UI from:
+/prime-ui-design generate a pixel-perfect UI from:
 @@design-docs/{design-doc}.md
 Store in @@ui-previews/
 ```
@@ -108,17 +108,16 @@ Ensures the feature delivers real value — not just functionality.
 **Claude — Step 5 *(Optional)* — Decision Design**
 
 ```
-/aria-insight-design
+/prime-insight-design
 ```
 
 Use when the feature produces outputs like: safe-to-spend, projections, affordability decisions, or alerts.
 
-*(Future: replace with `/prime-decision-design`)*
 
 **Claude — Step 6 *(Optional)* — Onboarding**
 
 ```
-/aria-onboarding-flow
+/prime-onboarding-flow
 ```
 
 Use when: feature impacts first-time experience, affects time-to-value, or requires data connection.
@@ -126,7 +125,7 @@ Use when: feature impacts first-time experience, affects time-to-value, or requi
 **Claude — Step 7 *(Optional)* — Landing Page**
 
 ```
-/aria-landing-design
+/prime-landing-design
 ```
 
 Use when: feature is user-visible, improves perceived value, or should be marketed.
@@ -159,7 +158,7 @@ Review spec:
 **Claude — Step 10 *(Optional)* — Security Review**
 
 ```
-/aria-security-review
+/prime-security-review
 ```
 
 Use when: financial data involved, integrations exist, auth boundaries exist, or projections/decisions could mislead.
