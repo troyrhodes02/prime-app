@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Typography from "@mui/material/Typography";
+import MuiLink from "@mui/material/Link";
 import { AuthCard } from "@/components/auth/auth-card";
 import { EmailForm } from "@/components/auth/email-form";
 import { AuthDivider } from "@/components/auth/auth-divider";
@@ -12,12 +14,26 @@ export default function LoginPage() {
 
   return (
     <AuthCard>
-      <h1 className="text-center text-2xl font-semibold text-gray-900">
+      <Typography
+        variant="h5"
+        sx={{
+          textAlign: "center",
+          fontWeight: 600,
+          color: "grey.900",
+        }}
+      >
         Welcome back
-      </h1>
-      <p className="mt-1 text-center text-sm text-gray-500">
+      </Typography>
+      <Typography
+        sx={{
+          mt: 0.5,
+          textAlign: "center",
+          fontSize: "0.875rem",
+          color: "grey.500",
+        }}
+      >
         Sign in to your financial workspace
-      </p>
+      </Typography>
 
       <EmailForm onLoadingChange={setLoading} />
 
@@ -25,12 +41,23 @@ export default function LoginPage() {
 
       <GoogleSignInButton disabled={loading} />
 
-      <p className="mt-6 text-center text-xs text-gray-400">
+      <Typography
+        sx={{
+          mt: 3,
+          textAlign: "center",
+          fontSize: "0.75rem",
+          color: "grey.400",
+        }}
+      >
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-blue-600 hover:underline">
+        <MuiLink
+          component={Link}
+          href="/signup"
+          sx={{ color: "primary.main", textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
+        >
           Get started
-        </Link>
-      </p>
+        </MuiLink>
+      </Typography>
     </AuthCard>
   );
 }

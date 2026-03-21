@@ -1,14 +1,43 @@
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import Typography from "@mui/material/Typography";
+
 export function AuthCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-sm sm:max-w-md sm:p-10">
-        <div className="mb-6 text-center">
-          <span className="text-xl font-semibold tracking-tight text-gray-900">
-            P.R.I.M.E.
-          </span>
-        </div>
+    <Box
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "#F9FAFB",
+        px: 2,
+      }}
+    >
+      <Card
+        elevation={0}
+        sx={{
+          width: "100%",
+          maxWidth: 448,
+          p: { xs: 3, sm: 5 },
+          borderRadius: 3,
+          boxShadow: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        }}
+      >
+        <Typography
+          sx={{
+            mb: 3,
+            textAlign: "center",
+            fontSize: "1.25rem",
+            fontWeight: 600,
+            letterSpacing: "-0.025em",
+            color: "grey.900",
+          }}
+        >
+          P.R.I.M.E.
+        </Typography>
         {children}
-      </div>
-    </div>
+      </Card>
+    </Box>
   );
 }

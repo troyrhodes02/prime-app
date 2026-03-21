@@ -1,11 +1,13 @@
 "use client";
 
+import Button from "@mui/material/Button";
+import SvgIcon from "@mui/material/SvgIcon";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 function GoogleIcon() {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24">
+    <SvgIcon sx={{ fontSize: 16 }}>
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
         fill="#4285F4"
@@ -22,7 +24,7 @@ function GoogleIcon() {
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         fill="#EA4335"
       />
-    </svg>
+    </SvgIcon>
   );
 }
 
@@ -43,14 +45,25 @@ export function GoogleSignInButton({ disabled }: { disabled?: boolean }) {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      fullWidth
+      variant="outlined"
       onClick={handleClick}
       disabled={disabled}
-      className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+      startIcon={<GoogleIcon />}
+      sx={{
+        borderColor: "grey.300",
+        color: "grey.700",
+        bgcolor: "white",
+        fontWeight: 500,
+        py: 1.25,
+        "&:hover": {
+          bgcolor: "grey.50",
+          borderColor: "grey.300",
+        },
+      }}
     >
-      <GoogleIcon />
       Continue with Google
-    </button>
+    </Button>
   );
 }

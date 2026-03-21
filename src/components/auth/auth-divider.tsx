@@ -1,9 +1,22 @@
+import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
+import Typography from "@mui/material/Typography";
+
 export function AuthDivider() {
   return (
-    <div className="my-6 flex items-center gap-3">
-      <div className="h-px flex-1 bg-gray-200" />
-      <span className="text-xs uppercase tracking-wide text-gray-400">or</span>
-      <div className="h-px flex-1 bg-gray-200" />
-    </div>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, my: 3 }}>
+      <Divider sx={{ flex: 1 }} />
+      <Typography
+        sx={{
+          fontSize: "0.75rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: "grey.400",
+        }}
+      >
+        or
+      </Typography>
+      <Divider sx={{ flex: 1 }} />
+    </Box>
   );
 }

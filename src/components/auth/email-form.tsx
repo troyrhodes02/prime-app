@@ -2,32 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-
-function Spinner() {
-  return (
-    <svg
-      className="h-4 w-4 animate-spin"
-      viewBox="0 0 24 24"
-      fill="none"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-      />
-    </svg>
-  );
-}
 
 export function EmailForm({
   onLoadingChange,
@@ -94,32 +74,38 @@ export function EmailForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-6 space-y-3">
-      <div>
-        <input
-          ref={inputRef}
-          type="email"
-          required
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (error) setError("");
-          }}
-          disabled={loading}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
-        />
-        {error && (
-          <p className="mt-1 text-xs text-red-600">{error}</p>
-        )}
-      </div>
-      <button
-        type="submit"
+    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
+      <TextField
+        inputRef={inputRef}
+        type="email"
+        required
+        fullWidth
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          if (error) setError("");
+        }}
         disabled={loading}
-        className="flex w-full items-center justify-center rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        error={!!error}
+        helperText={error}
+        size="small"
+        sx={{ mb: 1.5 }}
+      />
+      <Button
+        type="submit"
+        fullWidth
+        variant="contained"
+        disabled={loading}
+        disableElevation
+        sx={{ py: 1.25 }}
       >
-        {loading ? <Spinner /> : "Continue"}
-      </button>
-    </form>
+        {loading ? (
+          <CircularProgress size={20} color="inherit" />
+        ) : (
+          "Continue"
+        )}
+      </Button>
+    </Box>
   );
 }
