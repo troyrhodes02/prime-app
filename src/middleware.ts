@@ -32,26 +32,38 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname === route);
   const isProtectedRoute =
     PROTECTED_ROUTES.some((route) => pathname.startsWith(route)) ||
     (pathname.startsWith("/api/") && !pathname.startsWith("/api/auth/"));
+  const hasErrorParam = searchParams.has("error");
 
-  if (user && isAuthRoute) {
+  if (user && isAuthRoute && !hasErrorParam) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return createRedirectWithCookies(url, supabaseResponse);
   }
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/signup";
-    return NextResponse.redirect(url);
+    return createRedirectWithCookies(url, supabaseResponse);
   }
 
   return supabaseResponse;
+}
+
+function createRedirectWithCookies(
+  url: URL,
+  supabaseResponse: NextResponse,
+): NextResponse {
+  const redirect = NextResponse.redirect(url);
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    redirect.cookies.set(cookie.name, cookie.value);
+  });
+  return redirect;
 }
 
 export const config = {

@@ -115,6 +115,33 @@ describe("middleware", () => {
     });
   });
 
+  describe("error param bypass", () => {
+    it("allows authenticated user on /signup?error=provisioning_failed", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+      const response = await middleware(makeRequest("/signup?error=provisioning_failed"));
+
+      expect(response.status).toBe(200);
+    });
+
+    it("allows authenticated user on /signup?error=auth_failed", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+      const response = await middleware(makeRequest("/signup?error=auth_failed"));
+
+      expect(response.status).toBe(200);
+    });
+
+    it("still redirects authenticated user on /signup without error param", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+
+      const response = await middleware(makeRequest("/signup"));
+
+      expect(response.status).toBe(307);
+      expect(new URL(response.headers.get("location")!).pathname).toBe("/dashboard");
+    });
+  });
+
   describe("auth callback is not protected", () => {
     it("does not redirect /api/auth/callback", async () => {
       mockGetUser.mockResolvedValue({ data: { user: null } });
