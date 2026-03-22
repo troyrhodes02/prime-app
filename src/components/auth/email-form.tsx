@@ -10,11 +10,13 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export function EmailForm({
+  defaultEmail,
   onLoadingChange,
 }: {
+  defaultEmail?: string;
   onLoadingChange?: (loading: boolean) => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);

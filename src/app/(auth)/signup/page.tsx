@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Typography from "@mui/material/Typography";
 import MuiLink from "@mui/material/Link";
@@ -10,14 +11,14 @@ import { AuthDivider } from "@/components/auth/auth-divider";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AuthErrorBanner } from "@/components/auth/auth-error-banner";
 
-export default function SignupPage() {
+function SignupContent() {
+  const searchParams = useSearchParams();
+  const defaultEmail = searchParams.get("email") ?? undefined;
   const [loading, setLoading] = useState(false);
 
   return (
     <AuthCard>
-      <Suspense>
-        <AuthErrorBanner />
-      </Suspense>
+      <AuthErrorBanner />
 
       <Typography
         variant="h5"
@@ -40,7 +41,7 @@ export default function SignupPage() {
         Securely access your financial workspace
       </Typography>
 
-      <EmailForm onLoadingChange={setLoading} />
+      <EmailForm defaultEmail={defaultEmail} onLoadingChange={setLoading} />
 
       <AuthDivider />
 
@@ -64,5 +65,13 @@ export default function SignupPage() {
         </MuiLink>
       </Typography>
     </AuthCard>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupContent />
+    </Suspense>
   );
 }

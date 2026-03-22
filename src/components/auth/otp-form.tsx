@@ -21,6 +21,7 @@ export function OtpForm({ email }: { email: string }) {
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -97,8 +98,9 @@ export function OtpForm({ email }: { email: string }) {
   }
 
   async function handleResend() {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || resending) return;
 
+    setResending(true);
     try {
       const supabase = createClient();
       const { error: resendError } = await supabase.auth.signInWithOtp({
@@ -121,6 +123,8 @@ export function OtpForm({ email }: { email: string }) {
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch {
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -211,14 +215,14 @@ export function OtpForm({ email }: { email: string }) {
           component="button"
           type="button"
           onClick={handleResend}
-          disabled={resendCooldown > 0}
+          disabled={resendCooldown > 0 || resending}
           sx={{
             fontSize: "0.75rem",
-            color: resendCooldown > 0 ? "grey.300" : "primary.main",
+            color: resendCooldown > 0 || resending ? "grey.300" : "primary.main",
             textDecoration: "none",
-            cursor: resendCooldown > 0 ? "default" : "pointer",
+            cursor: resendCooldown > 0 || resending ? "default" : "pointer",
             "&:hover": {
-              textDecoration: resendCooldown > 0 ? "none" : "underline",
+              textDecoration: resendCooldown > 0 || resending ? "none" : "underline",
             },
             border: "none",
             background: "none",
