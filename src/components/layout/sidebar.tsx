@@ -37,7 +37,13 @@ function SidebarContent({
 }) {
   return (
     <>
-      <Box sx={{ px: 3, py: 2.5, display: "flex", alignItems: "center", gap: 1.25 }}>
+      <Box sx={{ px: 3, py: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Box
+          component="img"
+          src="/prime-logo.png"
+          alt=""
+          sx={{ height: 44, width: "auto", display: "block" }}
+        />
         <Typography
           sx={{
             fontSize: 18,
@@ -48,12 +54,6 @@ function SidebarContent({
         >
           P.R.I.M.E.
         </Typography>
-        <Box
-          component="img"
-          src="/prime-logo.svg"
-          alt=""
-          sx={{ height: 28, width: "auto" }}
-        />
       </Box>
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, px: 1.5, mt: 1 }}>
