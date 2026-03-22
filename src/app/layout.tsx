@@ -19,6 +19,16 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "P.R.I.M.E.",
   description: "Your financial decision engine",
+  icons: {
+    icon: "/prime-tab.png",
+    apple: "/prime-tab.png",
+  },
+  openGraph: {
+    title: "P.R.I.M.E.",
+    description: "Your financial decision engine",
+    images: ["/prime-tab.png"],
+    type: "website",
+  },
 };
 
 export default function RootLayout({
