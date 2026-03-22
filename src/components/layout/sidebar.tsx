@@ -13,12 +13,14 @@ import { NavItem } from "./nav-item";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardOutlined },
+  // TODO: PRI-12 — add route pages for these destinations before enabling navigation
   { href: "/budget", label: "Budget", icon: AccountBalanceWalletOutlined },
   { href: "/goals", label: "Goals", icon: FlagOutlined },
   { href: "/purchases", label: "Purchases", icon: ShoppingCartOutlined },
 ];
 
 const BOTTOM_NAV_ITEMS = [
+  // TODO: PRI-12 — add /settings route page
   { href: "/settings", label: "Settings", icon: SettingsOutlined },
 ];
 
