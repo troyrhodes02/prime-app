@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import Typography from "@mui/material/Typography";
 import MuiLink from "@mui/material/Link";
@@ -8,12 +8,17 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { EmailForm } from "@/components/auth/email-form";
 import { AuthDivider } from "@/components/auth/auth-divider";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { AuthErrorBanner } from "@/components/auth/auth-error-banner";
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
 
   return (
     <AuthCard>
+      <Suspense>
+        <AuthErrorBanner />
+      </Suspense>
+
       <Typography
         variant="h5"
         sx={{
