@@ -117,4 +117,44 @@ describe("GET /api/auth/callback", () => {
     expect(new URL(response.headers.get("location")!).pathname).toBe("/signup");
     expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("provisioning_failed");
   });
+
+  describe("OTP source flow", () => {
+    it("skips code exchange when source=otp and provisions user", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "sb-123", email: "user@example.com" } },
+      });
+      mockGetOrProvisionUser.mockResolvedValue({
+        user: { id: "user-1" },
+        isNew: true,
+      });
+
+      const response = await GET(makeRequest({ source: "otp" }));
+
+      expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
+      expect(new URL(response.headers.get("location")!).pathname).toBe("/welcome");
+    });
+
+    it("redirects to /dashboard for existing user via OTP", async () => {
+      mockGetUser.mockResolvedValue({
+        data: { user: { id: "sb-123", email: "user@example.com" } },
+      });
+      mockGetOrProvisionUser.mockResolvedValue({
+        user: { id: "user-1" },
+        isNew: false,
+      });
+
+      const response = await GET(makeRequest({ source: "otp" }));
+
+      expect(new URL(response.headers.get("location")!).pathname).toBe("/dashboard");
+    });
+
+    it("redirects to /signup?error=auth_failed when OTP session has no user", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: null } });
+
+      const response = await GET(makeRequest({ source: "otp" }));
+
+      expect(new URL(response.headers.get("location")!).pathname).toBe("/signup");
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("auth_failed");
+    });
+  });
 });

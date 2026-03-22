@@ -5,21 +5,25 @@ import { getOrProvisionUser } from "@/services/provisioning";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
+  const source = searchParams.get("source");
   const next = searchParams.get("next");
-
-  if (!code) {
-    return NextResponse.redirect(
-      `${origin}/signup?error=missing_code`,
-    );
-  }
 
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (source === "otp") {
+    // OTP verification sets the session directly on the client.
+    // Session cookies are forwarded via the browser request.
+  } else if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
+    if (error) {
+      return NextResponse.redirect(
+        `${origin}/signup?error=auth_failed`,
+      );
+    }
+  } else {
     return NextResponse.redirect(
-      `${origin}/signup?error=auth_failed`,
+      `${origin}/signup?error=missing_code`,
     );
   }
 
