@@ -146,6 +146,8 @@ Examples:
 
 **Typography**
 
+Primary font: IBM Plex Sans (body, labels, UI text). Header font: Space Grotesk (headings, display text).
+
 Table of text elements with size, weight, line-height, and Tailwind class examples.
 
 **Spacing**
