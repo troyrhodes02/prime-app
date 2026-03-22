@@ -1,20 +1,17 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Typography from "@mui/material/Typography";
 import MuiLink from "@mui/material/Link";
 import { AuthCard } from "@/components/auth/auth-card";
 import { EmailForm } from "@/components/auth/email-form";
-import { AuthDivider } from "@/components/auth/auth-divider";
-import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { AuthErrorBanner } from "@/components/auth/auth-error-banner";
 
 function SignupContent() {
   const searchParams = useSearchParams();
   const defaultEmail = searchParams.get("email") ?? undefined;
-  const [loading, setLoading] = useState(false);
 
   return (
     <AuthCard>
@@ -41,11 +38,7 @@ function SignupContent() {
         Securely access your financial workspace
       </Typography>
 
-      <EmailForm defaultEmail={defaultEmail} onLoadingChange={setLoading} />
-
-      <AuthDivider />
-
-      <GoogleSignInButton disabled={loading} />
+      <EmailForm defaultEmail={defaultEmail} />
 
       <Typography
         sx={{

@@ -11,10 +11,8 @@ import { toast } from "sonner";
 
 export function EmailForm({
   defaultEmail,
-  onLoadingChange,
 }: {
   defaultEmail?: string;
-  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [error, setError] = useState("");
@@ -46,7 +44,6 @@ export function EmailForm({
 
     setError("");
     setLoading(true);
-    onLoadingChange?.(true);
 
     try {
       const supabase = createClient();
@@ -71,7 +68,6 @@ export function EmailForm({
       toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
-      onLoadingChange?.(false);
     }
   }
 

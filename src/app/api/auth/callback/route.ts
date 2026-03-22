@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
 
     const redirectTo = next || "/dashboard";
     return NextResponse.redirect(`${origin}${redirectTo}`);
-  } catch {
+  } catch (error) {
+    console.error("[auth/callback] Provisioning failed:", error);
     return NextResponse.redirect(
       `${origin}/signup?error=provisioning_failed`,
     );
