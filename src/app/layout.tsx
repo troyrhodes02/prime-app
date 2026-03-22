@@ -1,22 +1,34 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const ibmPlexSans = IBM_Plex_Sans({
+  variable: "--font-ibm-plex-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: "P.R.I.M.E.",
   description: "Your financial decision engine",
+  icons: {
+    icon: "/prime-tab.png",
+    apple: "/prime-tab.png",
+  },
+  openGraph: {
+    title: "P.R.I.M.E.",
+    description: "Your financial decision engine",
+    images: ["/prime-tab.png"],
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${ibmPlexSans.variable} ${spaceGrotesk.variable}`}>
       <body>
         <ThemeProvider>
           {children}

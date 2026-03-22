@@ -3,7 +3,20 @@
     "allow": [
       "mcp__linear__list_projects",
       "mcp__linear__list_documents",
-      "mcp__linear__get_document"
+      "mcp__linear__get_document",
+      "Bash(npx vitest:*)",
+      "Bash(npx tsc:*)",
+      "mcp__linear__save_milestone",
+      "mcp__linear__list_issue_statuses",
+      "mcp__linear__save_issue",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__linear__get_issue",
+      "Bash(npm ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

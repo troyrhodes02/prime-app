@@ -302,6 +302,10 @@ Define:
 - loading states
 - feedback messaging
 
+Typography:
+- Primary font: IBM Plex Sans (body, labels, instructions)
+- Header font: Space Grotesk (step titles, value moments, headings)
+
 Focus on:
 - clarity
 - responsiveness
