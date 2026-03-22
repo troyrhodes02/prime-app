@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
@@ -22,8 +23,18 @@ function CheckIcon() {
   );
 }
 
-export default function WelcomePage() {
+function WelcomeContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isNew = searchParams.get("new") === "true";
+
+  useEffect(() => {
+    if (!isNew) {
+      router.replace("/dashboard");
+    }
+  }, [isNew, router]);
+
+  if (!isNew) return null;
 
   return (
     <Box
@@ -105,5 +116,13 @@ export default function WelcomePage() {
         </Button>
       </Card>
     </Box>
+  );
+}
+
+export default function WelcomePage() {
+  return (
+    <Suspense>
+      <WelcomeContent />
+    </Suspense>
   );
 }

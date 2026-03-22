@@ -62,7 +62,9 @@ describe("GET /api/auth/callback", () => {
 
     const response = await GET(makeRequest({ code: "valid-code" }));
 
-    expect(new URL(response.headers.get("location")!).pathname).toBe("/welcome");
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/welcome");
+    expect(location.searchParams.get("new")).toBe("true");
   });
 
   it("redirects to /dashboard for existing users", async () => {
@@ -131,7 +133,9 @@ describe("GET /api/auth/callback", () => {
       const response = await GET(makeRequest({ source: "otp" }));
 
       expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
-      expect(new URL(response.headers.get("location")!).pathname).toBe("/welcome");
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/welcome");
+      expect(location.searchParams.get("new")).toBe("true");
     });
 
     it("redirects to /dashboard for existing user via OTP", async () => {
