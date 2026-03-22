@@ -298,6 +298,15 @@ beforeEach(async () => {
 
 ## Frontend Implementation
 
+### Component Library: Material UI (MUI)
+
+All UI must be built with Material UI (`@mui/material`).
+
+- Use MUI components for all UI elements: Button, TextField, Typography, Box, Card, etc.
+- Use MUI's `sx` prop or theme system for component styling
+- Do not use raw HTML elements with Tailwind classes for UI components
+- Tailwind may be used for page-level layout utilities when needed
+
 ### Design Fidelity
 
 - Match design doc exactly
