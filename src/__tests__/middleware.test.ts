@@ -62,16 +62,7 @@ describe("middleware", () => {
       expect(new URL(response.headers.get("location")!).pathname).toBe("/signup");
     });
 
-    it("redirects /welcome to /signup", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: null } });
-
-      const response = await middleware(makeRequest("/welcome"));
-
-      expect(response.status).toBe(307);
-      expect(new URL(response.headers.get("location")!).pathname).toBe("/signup");
-    });
-
-    it("redirects protected /api routes to /signup", async () => {
+it("redirects protected /api routes to /signup", async () => {
       mockGetUser.mockResolvedValue({ data: { user: null } });
 
       const response = await middleware(makeRequest("/api/accounts"));
@@ -98,15 +89,7 @@ describe("middleware", () => {
       expect(response.status).toBe(200);
     });
 
-    it("allows authenticated user on /welcome", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
-
-      const response = await middleware(makeRequest("/welcome"));
-
-      expect(response.status).toBe(200);
-    });
-
-    it("allows authenticated user on /dashboard", async () => {
+it("allows authenticated user on /dashboard", async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: "u1" } } });
 
       const response = await middleware(makeRequest("/dashboard"));

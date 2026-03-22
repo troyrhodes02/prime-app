@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const { isNew } = await getOrProvisionUser(supabaseUser);
 
     if (isNew) {
-      return NextResponse.redirect(`${origin}/welcome?new=true`);
+      return NextResponse.redirect(`${origin}/dashboard?welcome=true`);
     }
 
     const redirectTo = next || "/dashboard";

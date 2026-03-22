@@ -50,7 +50,7 @@ describe("GET /api/auth/callback", () => {
     expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("auth_failed");
   });
 
-  it("redirects to /welcome for new users", async () => {
+  it("redirects to /dashboard?welcome=true for new users", async () => {
     mockExchangeCodeForSession.mockResolvedValue({ error: null });
     mockGetUser.mockResolvedValue({
       data: { user: { id: "sb-123", email: "user@example.com" } },
@@ -63,8 +63,8 @@ describe("GET /api/auth/callback", () => {
     const response = await GET(makeRequest({ code: "valid-code" }));
 
     const location = new URL(response.headers.get("location")!);
-    expect(location.pathname).toBe("/welcome");
-    expect(location.searchParams.get("new")).toBe("true");
+    expect(location.pathname).toBe("/dashboard");
+    expect(location.searchParams.get("welcome")).toBe("true");
   });
 
   it("redirects to /dashboard for existing users", async () => {
@@ -134,8 +134,8 @@ describe("GET /api/auth/callback", () => {
 
       expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
       const location = new URL(response.headers.get("location")!);
-      expect(location.pathname).toBe("/welcome");
-      expect(location.searchParams.get("new")).toBe("true");
+      expect(location.pathname).toBe("/dashboard");
+      expect(location.searchParams.get("welcome")).toBe("true");
     });
 
     it("redirects to /dashboard for existing user via OTP", async () => {
