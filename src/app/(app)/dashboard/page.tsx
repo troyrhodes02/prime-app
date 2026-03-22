@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -71,13 +71,14 @@ function GetStartedCard() {
 function WelcomeModalController() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const showWelcome = searchParams.get("welcome") === "true";
+  const [open, setOpen] = useState(searchParams.get("welcome") === "true");
 
   function handleWelcomeClose() {
+    setOpen(false);
     router.replace("/dashboard");
   }
 
-  return <WelcomeModal open={showWelcome} onClose={handleWelcomeClose} />;
+  return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
 }
 
 export default function DashboardPage() {
