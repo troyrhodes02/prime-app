@@ -66,7 +66,9 @@ function GetStartedCard() {
   );
 }
 
-function DashboardContent() {
+// Isolated to a narrow Suspense boundary so the dashboard layout
+// remains server-renderable. useSearchParams() only suspends this component.
+function WelcomeModalController() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const showWelcome = searchParams.get("welcome") === "true";
@@ -75,6 +77,10 @@ function DashboardContent() {
     router.replace("/dashboard");
   }
 
+  return <WelcomeModal open={showWelcome} onClose={handleWelcomeClose} />;
+}
+
+export default function DashboardPage() {
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -114,15 +120,9 @@ function DashboardContent() {
         </Box>
       </Box>
 
-      <WelcomeModal open={showWelcome} onClose={handleWelcomeClose} />
+      <Suspense fallback={null}>
+        <WelcomeModalController />
+      </Suspense>
     </>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense>
-      <DashboardContent />
-    </Suspense>
   );
 }
