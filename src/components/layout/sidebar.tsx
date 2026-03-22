@@ -52,7 +52,7 @@ function SidebarContent({
           component="img"
           src="/prime-logo.svg"
           alt=""
-          sx={{ height: 24, width: "auto" }}
+          sx={{ height: 28, width: "auto" }}
         />
       </Box>
 
