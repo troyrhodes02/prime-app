@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -9,6 +10,7 @@ import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
 import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { WelcomeModal } from "@/components/welcome-modal";
 
 const SUMMARY_CARDS = [
   { label: "Net Worth" },
@@ -65,43 +67,55 @@ function GetStartedCard() {
 }
 
 function DashboardContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const showWelcome = searchParams.get("welcome") === "true";
+
+  function handleWelcomeClose() {
+    router.replace("/dashboard");
+  }
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-          gap: 2,
-        }}
-      >
-        {SUMMARY_CARDS.map((card) => (
-          <SummaryCard key={card.label} label={card.label} />
-        ))}
+    <>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+            gap: 2,
+          }}
+        >
+          {SUMMARY_CARDS.map((card) => (
+            <SummaryCard key={card.label} label={card.label} />
+          ))}
+        </Box>
+
+        <GetStartedCard />
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 2,
+          }}
+        >
+          <EmptyStateCard
+            title="Recent Activity"
+            icon={ReceiptLongOutlined}
+            heading="No transactions yet"
+            description="Transactions will appear here once your accounts are connected."
+          />
+          <EmptyStateCard
+            title="Insights"
+            icon={LightbulbOutlined}
+            heading="No insights yet"
+            description="Insights will appear here as P.R.I.M.E. learns your finances."
+          />
+        </Box>
       </Box>
 
-      <GetStartedCard />
-
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-          gap: 2,
-        }}
-      >
-        <EmptyStateCard
-          title="Recent Activity"
-          icon={ReceiptLongOutlined}
-          heading="No transactions yet"
-          description="Transactions will appear here once your accounts are connected."
-        />
-        <EmptyStateCard
-          title="Insights"
-          icon={LightbulbOutlined}
-          heading="No insights yet"
-          description="Insights will appear here as P.R.I.M.E. learns your finances."
-        />
-      </Box>
-    </Box>
+      <WelcomeModal open={showWelcome} onClose={handleWelcomeClose} />
+    </>
   );
 }
 
