@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -179,14 +180,17 @@ export async function POST(request: NextRequest) {
     return { plaidItem, accountRecords, syncJob };
   });
 
-  // Run sync pipeline inline — response sent after completion
-  try {
-    await runSyncPipeline(result.syncJob.id);
-  } catch (error) {
-    // Sync failure is logged inside runSyncPipeline and SyncJob/PlaidItem
-    // status is updated. We still return success for the record creation.
-    console.error("[plaid/exchange-token] Sync pipeline failed:", (error as Error).message);
-  }
+  // Run sync pipeline in background — response returns immediately so the
+  // frontend can start polling /accounts/status and show progress UI
+  after(async () => {
+    try {
+      await runSyncPipeline(result.syncJob.id);
+    } catch (error) {
+      // Sync failure is logged inside runSyncPipeline and SyncJob/PlaidItem
+      // status is updated. The 201 was already sent for record creation.
+      console.error("[plaid/exchange-token] Sync pipeline failed:", (error as Error).message);
+    }
+  });
 
   return NextResponse.json(
     {
