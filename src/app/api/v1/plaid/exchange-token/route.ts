@@ -11,7 +11,7 @@ const ExchangeTokenSchema = z.object({
   institution: z.object({
     institution_id: z.string().min(1),
     name: z.string().min(1),
-  }),
+  }).nullable(),
   accounts: z.array(
     z.object({
       id: z.string().min(1),
@@ -105,6 +105,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Fetch authoritative account list from Plaid (don't trust client payload)
+  let plaidAccounts: Array<{
+    account_id: string;
+    name: string;
+    official_name: string | null;
+    type: string;
+    subtype: string | null;
+    mask: string | null;
+  }>;
+  try {
+    const accountsResponse = await plaidClient.accountsGet({
+      access_token: accessToken,
+    });
+    plaidAccounts = accountsResponse.data.accounts.map((a) => ({
+      account_id: a.account_id,
+      name: a.name,
+      official_name: a.official_name ?? null,
+      type: a.type,
+      subtype: a.subtype ?? null,
+      mask: a.mask ?? null,
+    }));
+  } catch (error) {
+    console.error("[plaid/exchange-token] Failed to fetch accounts from Plaid:", (error as Error).message);
+    return NextResponse.json(
+      { error: "plaid_unavailable", message: "Failed to fetch accounts from Plaid" },
+      { status: 502 },
+    );
+  }
+
   // Create records atomically
   const encryptedToken = encrypt(accessToken);
 
@@ -114,24 +143,24 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         plaidItemId: itemId,
         accessToken: encryptedToken,
-        institutionId: body.institution.institution_id,
-        institutionName: body.institution.name,
+        institutionId: body.institution?.institution_id ?? null,
+        institutionName: body.institution?.name ?? null,
         status: "CONNECTING",
       },
     });
 
     const accountRecords = await Promise.all(
-      body.accounts.map((account) =>
+      plaidAccounts.map((account) =>
         tx.financialAccount.create({
           data: {
             userId: user.id,
             plaidItemId: plaidItem.id,
-            plaidAccountId: account.id,
+            plaidAccountId: account.account_id,
             name: account.name,
-            officialName: account.official_name ?? null,
+            officialName: account.official_name,
             type: mapAccountType(account.type),
-            subtype: account.subtype ?? null,
-            mask: account.mask ?? null,
+            subtype: account.subtype,
+            mask: account.mask,
           },
         }),
       ),

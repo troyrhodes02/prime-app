@@ -42,7 +42,12 @@ async function plaidCallWithRetry<T>(
         "response" in error &&
         (error as { response?: { status?: number } }).response?.status === 429;
 
-      if (!isRateLimit || attempt === maxRetries) {
+      const isProductNotReady =
+        error instanceof Object &&
+        "response" in error &&
+        (error as { response?: { data?: { error_code?: string } } }).response?.data?.error_code === "PRODUCT_NOT_READY";
+
+      if ((!isRateLimit && !isProductNotReady) || attempt === maxRetries) {
         throw error;
       }
 

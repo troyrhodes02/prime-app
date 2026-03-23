@@ -29,10 +29,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const mockItemPublicTokenExchange = vi.fn();
+const mockAccountsGet = vi.fn();
 
 vi.mock("@/lib/plaid", () => ({
   plaidClient: {
     itemPublicTokenExchange: (...args: unknown[]) => mockItemPublicTokenExchange(...args),
+    accountsGet: (...args: unknown[]) => mockAccountsGet(...args),
   },
 }));
 
@@ -142,6 +144,22 @@ describe("POST /api/v1/plaid/exchange-token", () => {
     expect(body.error).toBe("duplicate_resource");
   });
 
+  it("returns 502 when Plaid accountsGet fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "sb-123" } } });
+    mockFindUnique.mockResolvedValue({ id: "user-1" });
+    mockItemPublicTokenExchange.mockResolvedValue({
+      data: { access_token: "access-sandbox-xyz", item_id: "item-new" },
+    });
+    mockFindUniqueItem.mockResolvedValue(null);
+    mockAccountsGet.mockRejectedValue(new Error("Plaid accounts error"));
+
+    const response = await POST(makeRequest(validBody));
+
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("plaid_unavailable");
+  });
+
   it("returns 201 on success with plaid_item_id, sync_job_id, accounts_created", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "sb-123" } } });
     mockFindUnique.mockResolvedValue({ id: "user-1" });
@@ -149,6 +167,20 @@ describe("POST /api/v1/plaid/exchange-token", () => {
       data: { access_token: "access-sandbox-xyz", item_id: "item-new" },
     });
     mockFindUniqueItem.mockResolvedValue(null);
+    mockAccountsGet.mockResolvedValue({
+      data: {
+        accounts: [
+          {
+            account_id: "acc-1",
+            name: "Total Checking",
+            official_name: "TOTAL CHECKING",
+            type: "depository",
+            subtype: "checking",
+            mask: "4829",
+          },
+        ],
+      },
+    });
     mockTransaction.mockResolvedValue({
       plaidItem: { id: "pi-1" },
       accountRecords: [{ id: "fa-1" }],
@@ -164,6 +196,29 @@ describe("POST /api/v1/plaid/exchange-token", () => {
     expect(body.accounts_created).toBe(1);
   });
 
+  it("accepts null institution", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "sb-123" } } });
+    mockFindUnique.mockResolvedValue({ id: "user-1" });
+    mockItemPublicTokenExchange.mockResolvedValue({
+      data: { access_token: "access-sandbox-xyz", item_id: "item-null-inst" },
+    });
+    mockFindUniqueItem.mockResolvedValue(null);
+    mockAccountsGet.mockResolvedValue({
+      data: { accounts: [{ account_id: "acc-1", name: "Checking", official_name: null, type: "depository", subtype: "checking", mask: "1234" }] },
+    });
+    mockTransaction.mockResolvedValue({
+      plaidItem: { id: "pi-2" },
+      accountRecords: [{ id: "fa-2" }],
+      syncJob: { id: "sj-2" },
+    });
+
+    const response = await POST(
+      makeRequest({ ...validBody, institution: null }),
+    );
+
+    expect(response.status).toBe(201);
+  });
+
   it("calls $transaction with a function", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "sb-123" } } });
     mockFindUnique.mockResolvedValue({ id: "user-1" });
@@ -171,6 +226,9 @@ describe("POST /api/v1/plaid/exchange-token", () => {
       data: { access_token: "access-sandbox-xyz", item_id: "item-new2" },
     });
     mockFindUniqueItem.mockResolvedValue(null);
+    mockAccountsGet.mockResolvedValue({
+      data: { accounts: [{ account_id: "acc-1", name: "Checking", official_name: null, type: "depository", subtype: "checking", mask: "1234" }] },
+    });
     mockTransaction.mockResolvedValue({
       plaidItem: { id: "pi-1" },
       accountRecords: [{ id: "fa-1" }],
