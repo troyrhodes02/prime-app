@@ -133,6 +133,26 @@ export default function DashboardPage() {
     [mutate],
   );
 
+  const handleRetry = useCallback(async () => {
+    if (!firstItem) return;
+    toast("Retrying sync…", { duration: 3000 });
+    try {
+      const res = await fetch(`/api/v1/plaid/sync/${firstItem.id}/retry`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Retry failed");
+      }
+      toast.success("Accounts connected successfully.", { duration: 3000 });
+      mutate();
+    } catch {
+      toast.error("Something went wrong syncing your accounts. Try again.", {
+        duration: 5000,
+      });
+    }
+  }, [firstItem, mutate]);
+
   function renderMainCard() {
     if (dashboardState === "syncing" && firstItem?.latest_sync) {
       return (
@@ -142,6 +162,7 @@ export default function DashboardPage() {
           syncStatus={firstItem.latest_sync.status}
           syncStep={firstItem.latest_sync.step}
           startedAt={firstItem.latest_sync.started_at}
+          onRetry={handleRetry}
         />
       );
     }
