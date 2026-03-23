@@ -122,8 +122,8 @@ export async function POST(request: NextRequest) {
       account_id: a.account_id,
       name: a.name,
       official_name: a.official_name ?? null,
-      type: a.type,
-      subtype: a.subtype ?? null,
+      type: String(a.type),
+      subtype: a.subtype ? String(a.subtype) : null,
       mask: a.mask ?? null,
     }));
   } catch (error) {
