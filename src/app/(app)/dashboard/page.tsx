@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { EmptyStateCard } from "@/components/empty-state-card";
 import { ConnectionCard } from "@/components/connection-card";
 import { SyncProgressCard } from "@/components/sync-progress-card";
+import { ActivationCard } from "@/components/activation-card";
+import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { useAccountStatus } from "@/hooks/use-account-status";
 
@@ -41,8 +43,6 @@ function SummaryCard({ label }: { label: string }) {
   );
 }
 
-// Isolated to a narrow Suspense boundary so the dashboard layout
-// remains server-renderable. useSearchParams() only suspends this component.
 function WelcomeModalController() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -56,61 +56,82 @@ function WelcomeModalController() {
   return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
 }
 
-type DashboardState = "pre_connection" | "syncing" | "connected";
-
-function deriveDashboardState(
-  hasConnectedAccounts: boolean,
-  hasActiveSync: boolean,
-  latestSyncStatus: string | null,
-): DashboardState {
-  if (!hasConnectedAccounts) return "pre_connection";
-  if (hasActiveSync) return "syncing";
-  if (latestSyncStatus === "FAILED") return "syncing";
-  return "connected";
-}
+type DashboardState =
+  | "pre_connection"
+  | "syncing"
+  | "activation_complete"
+  | "connected";
 
 export default function DashboardPage() {
   const { data: accountStatus, mutate } = useAccountStatus();
 
   const firstItem = accountStatus?.items[0] ?? null;
+  const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
+  const hasActiveSync = accountStatus?.has_active_sync ?? false;
   const latestSyncStatus = firstItem?.latest_sync?.status ?? null;
 
-  const dashboardState = deriveDashboardState(
-    accountStatus?.has_connected_accounts ?? false,
-    accountStatus?.has_active_sync ?? false,
-    latestSyncStatus,
-  );
+  // Track whether we've seen an active sync in this session.
+  // When sync transitions from active → completed, show activation_complete.
+  const wasActivelySyncing = useRef(false);
+  const [showActivation, setShowActivation] = useState(false);
 
-  const handlePlaidSuccess = useCallback(async (publicToken: string, metadata: Record<string, unknown>) => {
-    try {
-      const res = await fetch("/api/v1/plaid/exchange-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          public_token: publicToken,
-          institution: metadata.institution,
-          accounts: (metadata.accounts as Array<Record<string, unknown>>)?.map((a) => ({
-            id: a.id,
-            name: a.name,
-            official_name: a.official_name ?? null,
-            type: a.type,
-            subtype: a.subtype ?? null,
-            mask: a.mask ?? null,
-          })),
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || "Failed to connect accounts");
-      }
-
-      // Trigger immediate revalidation to start polling
-      mutate();
-    } catch {
-      toast.error("Failed to connect accounts. Please try again.");
+  useEffect(() => {
+    if (hasActiveSync) {
+      wasActivelySyncing.current = true;
+    } else if (
+      wasActivelySyncing.current &&
+      hasConnectedAccounts &&
+      latestSyncStatus === "COMPLETED"
+    ) {
+      wasActivelySyncing.current = false;
+      setShowActivation(true);
     }
-  }, [mutate]);
+  }, [hasActiveSync, hasConnectedAccounts, latestSyncStatus]);
+
+  const dashboardState: DashboardState = (() => {
+    if (!hasConnectedAccounts) return "pre_connection";
+    if (hasActiveSync) return "syncing";
+    if (latestSyncStatus === "FAILED") return "syncing";
+    if (showActivation) return "activation_complete";
+    return "connected";
+  })();
+
+  const handlePlaidSuccess = useCallback(
+    async (publicToken: string, metadata: Record<string, unknown>) => {
+      setShowActivation(false);
+
+      try {
+        const res = await fetch("/api/v1/plaid/exchange-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            public_token: publicToken,
+            institution: metadata.institution,
+            accounts: (
+              metadata.accounts as Array<Record<string, unknown>>
+            )?.map((a) => ({
+              id: a.id,
+              name: a.name,
+              official_name: a.official_name ?? null,
+              type: a.type,
+              subtype: a.subtype ?? null,
+              mask: a.mask ?? null,
+            })),
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to connect accounts");
+        }
+
+        mutate();
+      } catch {
+        toast.error("Failed to connect accounts. Please try again.");
+      }
+    },
+    [mutate],
+  );
 
   function renderMainCard() {
     if (dashboardState === "syncing" && firstItem?.latest_sync) {
@@ -125,18 +146,22 @@ export default function DashboardPage() {
       );
     }
 
-    if (dashboardState === "connected") {
-      // Stub for PRI-20: ConnectedAccountsCard
-      // ConnectionCard kept so users can connect additional institutions
+    if (dashboardState === "activation_complete" && accountStatus) {
       return (
-        <>
-          <Card variant="outlined" sx={{ p: 4, textAlign: "center" }}>
-            <Typography variant="body2" sx={{ color: "grey.500" }}>
-              Accounts connected — details coming in next update.
-            </Typography>
-          </Card>
-          <ConnectionCard onSuccess={handlePlaidSuccess} />
-        </>
+        <ActivationCard
+          items={accountStatus.items}
+          onPlaidSuccess={handlePlaidSuccess}
+          onDismiss={() => setShowActivation(false)}
+        />
+      );
+    }
+
+    if (dashboardState === "connected" && accountStatus) {
+      return (
+        <ConnectedAccountsCard
+          items={accountStatus.items}
+          onPlaidSuccess={handlePlaidSuccess}
+        />
       );
     }
 
