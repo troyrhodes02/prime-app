@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
+import { toast } from "sonner";
 import { EmptyStateCard } from "@/components/empty-state-card";
 import { ConnectionCard } from "@/components/connection-card";
 import { WelcomeModal } from "@/components/welcome-modal";
@@ -53,12 +54,36 @@ function WelcomeModalController() {
   return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
 }
 
-function handlePlaidSuccess(publicToken: string, metadata: Record<string, unknown>) {
-  // PRI-18 will implement the exchange-token call here
-  console.log("[plaid] Success — public_token received", { publicToken: publicToken.slice(0, 10) + "...", metadata });
-}
-
 export default function DashboardPage() {
+  const handlePlaidSuccess = useCallback(async (publicToken: string, metadata: Record<string, unknown>) => {
+    try {
+      const res = await fetch("/api/v1/plaid/exchange-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          public_token: publicToken,
+          institution: metadata.institution,
+          accounts: (metadata.accounts as Array<Record<string, unknown>>)?.map((a) => ({
+            id: a.id,
+            name: a.name,
+            official_name: a.official_name ?? null,
+            type: a.type,
+            subtype: a.subtype ?? null,
+            mask: a.mask ?? null,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to connect accounts");
+      }
+
+      toast.success("Accounts connected successfully");
+    } catch {
+      toast.error("Failed to connect accounts. Please try again.");
+    }
+  }, []);
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
