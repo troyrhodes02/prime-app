@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CircularProgress from "@mui/material/CircularProgress";
+import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
@@ -20,32 +21,45 @@ interface ActivationCardProps {
 export function ActivationCard({ items, onPlaidSuccess, onDismiss }: ActivationCardProps) {
   const { open, loading } = usePlaidLink({ onSuccess: onPlaidSuccess });
 
+  const totalAccounts = items.reduce((sum, item) => sum + item.accounts.length, 0);
+
   return (
     <Card variant="outlined" sx={{ p: 5, textAlign: "center" }}>
-      <CheckCircleOutlined
+      {/* Status indicator */}
+      <Box
         sx={{
-          fontSize: 48,
-          color: "success.main",
+          mx: "auto",
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          bgcolor: "#ECFDF5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           animation: "scaleIn 300ms ease-out",
           "@keyframes scaleIn": {
             "0%": { transform: "scale(0.8)", opacity: 0 },
             "100%": { transform: "scale(1)", opacity: 1 },
           },
         }}
-      />
+      >
+        <CheckCircleOutlined sx={{ fontSize: 22, color: "#059669" }} />
+      </Box>
 
       <Typography variant="h6" sx={{ fontWeight: 600, color: "grey.900", mt: 2 }}>
-        Your financial profile is ready
+        Analysis complete
       </Typography>
 
       <Typography
         variant="body2"
-        sx={{ color: "grey.500", maxWidth: 440, mx: "auto", mt: 1 }}
+        sx={{ color: "grey.500", maxWidth: 400, mx: "auto", mt: 1, lineHeight: 1.6 }}
       >
-        We&apos;ve connected your accounts and started analyzing your financial
-        activity. Your insights are being prepared.
+        P.R.I.M.E. has reviewed your financial activity across{" "}
+        {totalAccounts} {totalAccounts === 1 ? "account" : "accounts"} and is
+        building your financial picture. Insights are being prepared.
       </Typography>
 
+      {/* Institution list */}
       <Box
         sx={{
           mt: 3,
@@ -101,7 +115,7 @@ export function ActivationCard({ items, onPlaidSuccess, onDismiss }: ActivationC
                   variant="caption"
                   sx={{ fontWeight: 500, color: "success.main" }}
                 >
-                  Synced
+                  Analyzed
                 </Typography>
               </Box>
             </Box>
@@ -112,23 +126,50 @@ export function ActivationCard({ items, onPlaidSuccess, onDismiss }: ActivationC
         ))}
       </Box>
 
+      {/* Primary CTA */}
+      {/* TODO: navigate to /overview once financial overview page is built */}
       <Button
-        variant="outlined"
-        onClick={() => open()}
-        disabled={loading}
-        startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <AddOutlined />}
-        sx={{ mt: 3, textTransform: "none" }}
+        variant="contained"
+        disableElevation
+        onClick={onDismiss}
+        sx={{ mt: 3.5, textTransform: "none", px: 3.5, py: 1.25 }}
       >
-        Connect Another Account
+        See Financial Overview
       </Button>
 
-      <Button
-        variant="text"
-        onClick={onDismiss}
-        sx={{ mt: 1, textTransform: "none", color: "grey.500", fontSize: "0.8125rem" }}
-      >
-        View connected accounts
-      </Button>
+      {/* Secondary actions */}
+      <Divider sx={{ mt: 3.5, mb: 2.5, mx: "auto", maxWidth: 360 }} />
+
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => open()}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <AddOutlined sx={{ fontSize: 16 }} />}
+          sx={{ textTransform: "none", fontSize: "0.8125rem", color: "grey.700", borderColor: "grey.300", "&:hover": { borderColor: "grey.400", bgcolor: "grey.50" } }}
+        >
+          Connect Another Account
+        </Button>
+
+        {/* TODO: navigate to /transactions once Transactions page is built */}
+        <Typography
+          component="button"
+          onClick={onDismiss}
+          sx={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "0.8125rem",
+            color: "grey.400",
+            "&:hover": { color: "grey.600" },
+            transition: "color 150ms",
+            p: 0,
+          }}
+        >
+          View transactions
+        </Typography>
+      </Box>
     </Card>
   );
 }

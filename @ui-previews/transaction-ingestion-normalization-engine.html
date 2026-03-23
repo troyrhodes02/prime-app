@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P.R.I.M.E. — Transaction Ingestion & Normalization Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 font-['IBM_Plex_Sans'] text-gray-900 antialiased m-0 p-0">
+
+  <!-- View Switcher -->
+  <div class="fixed top-4 right-4 z-50 flex items-center bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden" style="font-size: 12px;">
+    <button onclick="showView('dashboard')" id="btn-dashboard" class="px-3 py-1.5 font-medium text-white transition-colors" style="background: #2563EB; font-family: 'IBM Plex Sans';">Dashboard</button>
+    <button onclick="showView('activation')" id="btn-activation" class="px-3 py-1.5 font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white" style="font-family: 'IBM Plex Sans';">Activation</button>
+    <button onclick="showView('transactions')" id="btn-transactions" class="px-3 py-1.5 font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white" style="font-family: 'IBM Plex Sans';">Transactions</button>
+    <button onclick="showView('empty')" id="btn-empty" class="px-3 py-1.5 font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white" style="font-family: 'IBM Plex Sans';">Empty State</button>
+  </div>
+
+  <!-- App Shell -->
+  <div class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <nav class="w-[260px] bg-gray-100 border-r border-gray-200 fixed top-0 left-0 bottom-0 flex flex-col flex-shrink-0">
+      <div class="px-6 py-4 flex items-center gap-1.5">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #2563EB;">
+          <span class="text-white font-bold text-xs" style="font-family: 'Lexend'; letter-spacing: -0.03em;">P</span>
+        </div>
+        <span class="text-lg font-semibold text-gray-900" style="font-family: 'Lexend'; letter-spacing: -0.03em;">P.R.I.M.E.</span>
+      </div>
+
+      <div class="flex flex-col gap-0.5 px-3 mt-1" id="sidebar-nav">
+        <!-- Dashboard -->
+        <a href="#" onclick="showView('dashboard'); return false;" id="nav-dashboard" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors" style="background: rgba(37,99,235,0.08); color: #2563EB;">
+          <i data-lucide="layout-dashboard" class="w-5 h-5" style="stroke-width: 1.5;"></i>
+          Dashboard
+        </a>
+        <!-- Transactions -->
+        <a href="#" onclick="showView('transactions'); return false;" id="nav-transactions" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">
+          <i data-lucide="receipt" class="w-5 h-5 text-gray-400" style="stroke-width: 1.5;"></i>
+          Transactions
+        </a>
+        <!-- Budget -->
+        <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">
+          <i data-lucide="wallet" class="w-5 h-5 text-gray-400" style="stroke-width: 1.5;"></i>
+          Budget
+        </a>
+        <!-- Goals -->
+        <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">
+          <i data-lucide="flag" class="w-5 h-5 text-gray-400" style="stroke-width: 1.5;"></i>
+          Goals
+        </a>
+        <!-- Purchases -->
+        <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">
+          <i data-lucide="shopping-cart" class="w-5 h-5 text-gray-400" style="stroke-width: 1.5;"></i>
+          Purchases
+        </a>
+      </div>
+
+      <div class="border-t border-gray-200 mx-3 my-2"></div>
+
+      <div class="px-3">
+        <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors">
+          <i data-lucide="settings" class="w-5 h-5 text-gray-400" style="stroke-width: 1.5;"></i>
+          Settings
+        </a>
+      </div>
+    </nav>
+
+    <!-- Main Area -->
+    <div class="flex-1 ml-[260px]">
+
+      <!-- Header -->
+      <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-40">
+        <h1 id="page-title" class="text-xl font-semibold text-gray-900" style="font-family: 'Lexend'; letter-spacing: -0.02em;">Dashboard</h1>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-400 hidden sm:inline" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">user@example.com</span>
+          <button class="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-100">
+            <i data-lucide="log-out" class="w-4 h-4" style="stroke-width: 1.5;"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content -->
+      <main class="p-6 min-h-[calc(100vh-64px)]">
+
+        <!-- ============================================ -->
+        <!-- VIEW: Dashboard (connected, with transactions) -->
+        <!-- ============================================ -->
+        <div id="view-dashboard">
+
+          <!-- Summary Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Net Worth</p>
+              <p class="text-2xl font-semibold text-gray-900 mt-1" style="font-family: 'Lexend'; letter-spacing: -0.02em;">$12,847</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Spending This Month</p>
+              <p class="text-2xl font-semibold text-gray-900 mt-1" style="font-family: 'Lexend'; letter-spacing: -0.02em;">$1,243</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Upcoming Bills</p>
+              <p class="text-2xl font-semibold text-gray-300 mt-1" style="font-family: 'Lexend';">&mdash;</p>
+            </div>
+          </div>
+
+          <!-- Connected Accounts Card -->
+          <div class="bg-white border border-gray-200 rounded-lg p-5 mb-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                  <i data-lucide="landmark" class="w-5 h-5 text-blue-600" style="stroke-width: 1.5;"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-900">Chase</p>
+                  <p class="text-xs text-gray-400">3 accounts connected</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style="background: #ECFDF5; color: #059669;">
+                  <span class="w-1.5 h-1.5 rounded-full" style="background: #059669;"></span>
+                  Active
+                </span>
+                <button class="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">+ Connect Another</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Row -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <!-- Recent Activity (populated) -->
+            <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 class="text-base font-semibold text-gray-900" style="font-family: 'Lexend'; font-weight: 500; letter-spacing: -0.01em;">Recent Activity</h3>
+                <a href="#" onclick="showView('transactions'); return false;" class="text-sm font-medium hover:underline" style="color: #2563EB; text-decoration: none;">View All</a>
+              </div>
+              <!-- Transaction rows -->
+              <div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <span class="text-sm font-medium text-gray-700 truncate mr-3">Starbucks</span>
+                  <div class="flex items-center gap-4 flex-shrink-0">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$4.85</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 22 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <span class="text-sm font-medium text-gray-700 truncate mr-3">Amazon</span>
+                  <div class="flex items-center gap-4 flex-shrink-0">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$34.99</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 21 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <span class="text-sm font-medium text-gray-700 truncate mr-3">Employer Direct Deposit</span>
+                  <div class="flex items-center gap-4 flex-shrink-0">
+                    <span class="text-sm font-semibold" style="color: #059669; font-variant-numeric: tabular-nums;">+$2,450.00</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 20 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <span class="text-sm font-medium text-gray-700 truncate mr-3">Netflix</span>
+                  <div class="flex items-center gap-4 flex-shrink-0">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$15.99</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 19 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                  <span class="text-sm font-medium text-gray-700 truncate mr-3">Whole Foods</span>
+                  <div class="flex items-center gap-4 flex-shrink-0">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$87.42</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 18 &middot; Visa &middot;&middot;42</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Insights (still empty) -->
+            <div class="bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center min-h-[260px]">
+              <div class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                <i data-lucide="lightbulb" class="w-5 h-5 text-gray-300" style="stroke-width: 1.5;"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-400">No insights yet</p>
+              <p class="text-sm text-gray-300 mt-1 text-center max-w-[260px]">Insights will appear here as P.R.I.M.E. learns your finances.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: Activation Complete -->
+        <!-- ============================================ -->
+        <div id="view-activation" class="hidden">
+
+          <!-- Summary Cards (same) -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Net Worth</p>
+              <p class="text-2xl font-semibold text-gray-900 mt-1" style="font-family: 'Lexend'; letter-spacing: -0.02em;">$12,847</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Spending This Month</p>
+              <p class="text-2xl font-semibold text-gray-900 mt-1" style="font-family: 'Lexend'; letter-spacing: -0.02em;">$1,243</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg p-5">
+              <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Upcoming Bills</p>
+              <p class="text-2xl font-semibold text-gray-300 mt-1" style="font-family: 'Lexend';">&mdash;</p>
+            </div>
+          </div>
+
+          <!-- Activation Card -->
+          <div class="bg-white border border-gray-200 rounded-lg px-10 pt-9 pb-7 text-center mb-4">
+            <!-- Status indicator — small, understated -->
+            <div class="mx-auto w-10 h-10 rounded-full flex items-center justify-center mb-4" style="background: #ECFDF5;">
+              <i data-lucide="check" class="w-5 h-5" style="color: #059669; stroke-width: 2.5;"></i>
+            </div>
+            <h2 class="text-lg font-semibold text-gray-900 mb-1.5" style="font-family: 'Lexend'; letter-spacing: -0.02em;">Analysis complete</h2>
+            <p class="text-sm text-gray-400 max-w-sm mx-auto" style="line-height: 1.6;">P.R.I.M.E. has reviewed your financial activity across 3 accounts and is building your financial picture. Insights are being prepared.</p>
+
+            <!-- Institution list -->
+            <div class="flex flex-col gap-2 mt-5 max-w-[360px] mx-auto">
+              <div class="flex items-center gap-3 px-3.5 py-3 rounded-lg border border-gray-200 bg-gray-50 text-left">
+                <div class="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0" style="background: #2563EB;">
+                  <i data-lucide="landmark" class="w-4 h-4 text-white" style="stroke-width: 1.5;"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-800">Chase</p>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs text-gray-400">3 accounts</span>
+                    <span class="text-xs text-gray-300">·</span>
+                    <span class="text-xs font-medium" style="color: #059669;">Analyzed</span>
+                  </div>
+                </div>
+                <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0" style="color: #6EE7B7; stroke-width: 1.5;"></i>
+              </div>
+            </div>
+
+            <!-- Primary CTA -->
+            <button onclick="showView('dashboard')" class="mt-6 px-7 py-2.5 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90" style="background: #2563EB;">
+              See Financial Overview
+            </button>
+
+            <!-- Divider -->
+            <div class="border-t border-gray-200 mt-6 mb-5 max-w-[360px] mx-auto"></div>
+
+            <!-- Secondary actions -->
+            <div class="flex items-center justify-center gap-6">
+              <button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <i data-lucide="plus" class="w-3.5 h-3.5" style="stroke-width: 2;"></i>
+                Connect Another Account
+              </button>
+              <button onclick="showView('transactions')" class="text-xs text-gray-400 hover:text-gray-600 transition-colors" style="background: none; border: none; cursor: pointer;">
+                View transactions
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Row (same as dashboard) -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 class="text-base font-medium text-gray-900" style="font-family: 'Lexend'; letter-spacing: -0.01em;">Recent Activity</h3>
+                <a href="#" onclick="showView('transactions'); return false;" class="text-sm font-medium hover:underline" style="color: #2563EB; text-decoration: none;">View All</a>
+              </div>
+              <div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                  <span class="text-sm font-medium text-gray-700">Starbucks</span>
+                  <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$4.85</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 22 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                  <span class="text-sm font-medium text-gray-700">Amazon</span>
+                  <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$34.99</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 21 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                  <span class="text-sm font-medium text-gray-700">Employer Direct Deposit</span>
+                  <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold" style="color: #059669; font-variant-numeric: tabular-nums;">+$2,450.00</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 20 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                  <span class="text-sm font-medium text-gray-700">Netflix</span>
+                  <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$15.99</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 19 &middot; Checking</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between px-5 py-3">
+                  <span class="text-sm font-medium text-gray-700">Whole Foods</span>
+                  <div class="flex items-center gap-4">
+                    <span class="text-sm font-semibold text-gray-900" style="font-variant-numeric: tabular-nums;">-$87.42</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap" style="min-width: 100px; text-align: right;">Mar 18 &middot; Visa &middot;&middot;42</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center min-h-[260px]">
+              <div class="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                <i data-lucide="lightbulb" class="w-5 h-5 text-gray-300" style="stroke-width: 1.5;"></i>
+              </div>
+              <p class="text-sm font-medium text-gray-400">No insights yet</p>
+              <p class="text-sm text-gray-300 mt-1 text-center max-w-[260px]">Insights will appear here as P.R.I.M.E. learns your finances.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: Transactions Page -->
+        <!-- ============================================ -->
+        <div id="view-transactions" class="hidden">
+
+          <!-- Trust Label -->
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="sparkles" class="w-4 h-4 text-gray-300" style="stroke-width: 1.5;"></i>
+            <span class="text-xs text-gray-400">Transactions are automatically cleaned and organized by P.R.I.M.E.</span>
+          </div>
+
+          <!-- Transaction Card -->
+          <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+
+            <!-- Filter Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-gray-50 border-b border-gray-200">
+              <div class="flex items-center gap-2 flex-wrap">
+                <!-- Account Select -->
+                <div class="relative">
+                  <select class="appearance-none bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-gray-700 cursor-pointer hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1" style="min-width: 160px; font-family: 'IBM Plex Sans';">
+                    <option>All Accounts</option>
+                    <option>Checking &middot;&middot;4521</option>
+                    <option>Savings &middot;&middot;7832</option>
+                    <option>Visa &middot;&middot;4242</option>
+                  </select>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400" style="stroke-width: 1.5;"></i>
+                  </div>
+                </div>
+
+                <!-- Type Filter Chips -->
+                <button class="px-3 py-1.5 text-xs font-medium rounded-full transition-colors" style="background: rgba(37,99,235,0.08); color: #2563EB; border: 1px solid #2563EB;">All</button>
+                <button class="px-3 py-1.5 text-xs font-medium rounded-full bg-white border border-gray-200 text-gray-600 hover:border-gray-300 transition-colors">Income</button>
+                <button class="px-3 py-1.5 text-xs font-medium rounded-full bg-white border border-gray-200 text-gray-600 hover:border-gray-300 transition-colors">Expense</button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <!-- Time Filter Chips -->
+                <button class="px-3 py-1.5 text-xs font-medium rounded-full transition-colors" style="background: rgba(37,99,235,0.08); color: #2563EB; border: 1px solid #2563EB;">Last 30 days</button>
+                <button class="px-3 py-1.5 text-xs font-medium rounded-full bg-white border border-gray-200 text-gray-600 hover:border-gray-300 transition-colors">Last 90 days</button>
+              </div>
+            </div>
+
+            <!-- Transaction Rows -->
+            <div>
+              <!-- Row 1 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Starbucks</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$4.85</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 22</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 2 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Amazon</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$34.99</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 21</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 3 - Income -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Employer Direct Deposit</span>
+                </div>
+                <span class="text-sm font-semibold w-[100px] text-right" style="color: #059669; font-variant-numeric: tabular-nums;">+$2,450.00</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 20</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 4 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Netflix</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$15.99</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 19</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 5 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Whole Foods Market</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$87.42</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 18</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Visa &middot;&middot;42</span>
+              </div>
+              <!-- Row 6 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Trader Joe's</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$62.18</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 17</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Visa &middot;&middot;42</span>
+              </div>
+              <!-- Row 7 - Pending -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Uber</span>
+                  <span class="ml-2 px-2 py-0.5 text-xs text-gray-400 rounded-md flex-shrink-0" style="background: #F3F4F6; font-size: 11px;">Pending</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$24.50</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 17</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 8 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Spotify</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$9.99</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 16</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 9 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Target</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$156.23</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 15</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Visa &middot;&middot;42</span>
+              </div>
+              <!-- Row 10 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Shell Gas Station</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$48.72</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 14</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 11 - Income -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Venmo Payment</span>
+                </div>
+                <span class="text-sm font-semibold w-[100px] text-right" style="color: #059669; font-variant-numeric: tabular-nums;">+$75.00</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 13</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 12 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">Chipotle</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$12.45</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 12</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Visa &middot;&middot;42</span>
+              </div>
+              <!-- Row 13 -->
+              <div class="flex items-center px-5 py-3.5 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">CVS Pharmacy</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$23.47</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 11</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+              <!-- Row 14 -->
+              <div class="flex items-center px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-default">
+                <div class="flex-1 flex items-center overflow-hidden mr-4">
+                  <span class="text-sm font-medium text-gray-700 truncate">AT&T Wireless</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-900 w-[100px] text-right" style="font-variant-numeric: tabular-nums;">-$85.00</span>
+                <span class="text-xs text-gray-400 w-[70px] text-right ml-4">Mar 10</span>
+                <span class="text-xs text-gray-400 w-[100px] text-right ml-4">Checking</span>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between px-5 py-3 bg-gray-50 border-t border-gray-200">
+              <span class="text-xs text-gray-400">Showing 128 of 642 transactions</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- VIEW: Empty State (no accounts) -->
+        <!-- ============================================ -->
+        <div id="view-empty" class="hidden">
+
+          <!-- Trust Label (dimmed) -->
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="sparkles" class="w-4 h-4 text-gray-200" style="stroke-width: 1.5;"></i>
+            <span class="text-xs text-gray-300">Transactions are automatically cleaned and organized by P.R.I.M.E.</span>
+          </div>
+
+          <!-- Empty State Card -->
+          <div class="bg-white border border-gray-200 rounded-lg flex flex-col items-center justify-center py-20 px-6">
+            <div class="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+              <i data-lucide="landmark" class="w-7 h-7 text-gray-300" style="stroke-width: 1.5;"></i>
+            </div>
+            <h3 class="text-base font-semibold text-gray-900 mb-1.5" style="font-family: 'Lexend'; letter-spacing: -0.01em;">Connect your accounts to see transactions</h3>
+            <p class="text-sm text-gray-400 text-center max-w-sm">P.R.I.M.E. will automatically organize and clean your transaction history.</p>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Initialize icons
+    lucide.createIcons();
+
+    function showView(view) {
+      // Hide all views
+      document.getElementById('view-dashboard').classList.add('hidden');
+      document.getElementById('view-activation').classList.add('hidden');
+      document.getElementById('view-transactions').classList.add('hidden');
+      document.getElementById('view-empty').classList.add('hidden');
+
+      // Show selected
+      document.getElementById('view-' + view).classList.remove('hidden');
+
+      // Update page title
+      var titles = {
+        dashboard: 'Dashboard',
+        activation: 'Dashboard',
+        transactions: 'Transactions',
+        empty: 'Transactions'
+      };
+      document.getElementById('page-title').textContent = titles[view];
+
+      // Update view switcher buttons
+      var btns = ['dashboard', 'activation', 'transactions', 'empty'];
+      btns.forEach(function(b) {
+        var el = document.getElementById('btn-' + b);
+        if (b === view) {
+          el.style.background = '#2563EB';
+          el.style.color = '#fff';
+        } else {
+          el.style.background = '#fff';
+          el.style.color = '#6B7280';
+        }
+      });
+
+      // Update sidebar active state
+      var navDash = document.getElementById('nav-dashboard');
+      var navTxn = document.getElementById('nav-transactions');
+
+      if (view === 'dashboard' || view === 'activation') {
+        navDash.style.background = 'rgba(37,99,235,0.08)';
+        navDash.style.color = '#2563EB';
+        navDash.querySelector('i').classList.remove('text-gray-400');
+        navDash.querySelector('i').style.color = '#2563EB';
+
+        navTxn.style.background = 'transparent';
+        navTxn.style.color = '#4B5563';
+        navTxn.querySelector('i').style.color = '#9CA3AF';
+      } else {
+        navDash.style.background = 'transparent';
+        navDash.style.color = '#4B5563';
+        navDash.querySelector('i').style.color = '#9CA3AF';
+
+        navTxn.style.background = 'rgba(37,99,235,0.08)';
+        navTxn.style.color = '#2563EB';
+        navTxn.querySelector('i').style.color = '#2563EB';
+      }
+    }
+
+    // Default view
+    showView('dashboard');
+  </script>
+</body>
+</html>
