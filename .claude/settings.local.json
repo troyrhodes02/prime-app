@@ -16,7 +16,14 @@
       "Bash(npm ls:*)",
       "Bash(npm install:*)",
       "Bash(npx next:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh api:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(node -e \"require\\(''zod''\\)\")",
+      "Bash(grep '\"\"zod\"\"' package.json)",
+      "Bash(npx prisma:*)"
     ]
   }
 }

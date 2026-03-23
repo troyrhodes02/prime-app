@@ -14,7 +14,7 @@ Unless the user specifies a different style, design with the visual quality and 
 
 Be extremely accurate with typography.
 Use IBM Plex Sans as the primary font (body, labels, UI text).
-Use Space Grotesk for headings and display text.
+Use Lexend for headings and display text.
 For font weight, use one level thinner than the obvious choice.
 Titles above 20px should use tight tracking.
 

@@ -1,16 +1,20 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
 import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
+import { toast } from "sonner";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { ConnectionCard } from "@/components/connection-card";
+import { SyncProgressCard } from "@/components/sync-progress-card";
+import { ActivationCard } from "@/components/activation-card";
+import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
+import { useAccountStatus } from "@/hooks/use-account-status";
 
 const SUMMARY_CARDS = [
   { label: "Net Worth" },
@@ -39,35 +43,6 @@ function SummaryCard({ label }: { label: string }) {
   );
 }
 
-function GetStartedCard() {
-  return (
-    <Card variant="outlined" sx={{ p: 5, textAlign: "center" }}>
-      <AccountBalanceOutlined sx={{ fontSize: 48, color: "grey.400" }} />
-      <Typography variant="h6" sx={{ fontWeight: 600, color: "grey.900", mt: 2 }}>
-        Connect your financial accounts to get started
-      </Typography>
-      <Typography
-        variant="body2"
-        sx={{ color: "grey.500", maxWidth: 420, mx: "auto", mt: 1 }}
-      >
-        P.R.I.M.E. will automatically organize your transactions, track your spending,
-        and help you make confident financial decisions.
-      </Typography>
-      <Button variant="outlined" disabled sx={{ mt: 3 }}>
-        Connect Accounts
-      </Button>
-      <Typography
-        variant="caption"
-        sx={{ display: "block", color: "grey.400", mt: 1 }}
-      >
-        Coming soon
-      </Typography>
-    </Card>
-  );
-}
-
-// Isolated to a narrow Suspense boundary so the dashboard layout
-// remains server-renderable. useSearchParams() only suspends this component.
 function WelcomeModalController() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -81,7 +56,139 @@ function WelcomeModalController() {
   return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
 }
 
+type DashboardState =
+  | "pre_connection"
+  | "syncing"
+  | "activation_complete"
+  | "connected";
+
 export default function DashboardPage() {
+  const { data: accountStatus, mutate } = useAccountStatus();
+
+  const firstItem = accountStatus?.items[0] ?? null;
+  const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
+  const hasActiveSync = accountStatus?.has_active_sync ?? false;
+  const latestSyncStatus = firstItem?.latest_sync?.status ?? null;
+
+  // Track whether we've seen an active sync in this session.
+  // When sync transitions from active → completed, show activation_complete.
+  const wasActivelySyncing = useRef(false);
+  const [showActivation, setShowActivation] = useState(false);
+
+  useEffect(() => {
+    if (hasActiveSync) {
+      wasActivelySyncing.current = true;
+    } else if (
+      wasActivelySyncing.current &&
+      hasConnectedAccounts &&
+      latestSyncStatus === "COMPLETED"
+    ) {
+      wasActivelySyncing.current = false;
+      setShowActivation(true);
+    }
+  }, [hasActiveSync, hasConnectedAccounts, latestSyncStatus]);
+
+  const dashboardState: DashboardState = (() => {
+    if (!hasConnectedAccounts) return "pre_connection";
+    if (hasActiveSync) return "syncing";
+    if (latestSyncStatus === "FAILED") return "syncing";
+    if (showActivation) return "activation_complete";
+    return "connected";
+  })();
+
+  const handlePlaidSuccess = useCallback(
+    async (publicToken: string, metadata: Record<string, unknown>) => {
+      setShowActivation(false);
+
+      try {
+        const res = await fetch("/api/v1/plaid/exchange-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            public_token: publicToken,
+            institution: metadata.institution,
+            accounts: (
+              metadata.accounts as Array<Record<string, unknown>>
+            )?.map((a) => ({
+              id: a.id,
+              name: a.name,
+              official_name: a.official_name ?? null,
+              type: a.type,
+              subtype: a.subtype ?? null,
+              mask: a.mask ?? null,
+            })),
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to connect accounts");
+        }
+
+        mutate();
+      } catch {
+        toast.error("Failed to connect accounts. Please try again.");
+      }
+    },
+    [mutate],
+  );
+
+  const handleRetry = useCallback(async () => {
+    if (!firstItem) return;
+    toast("Retrying sync…", { duration: 3000 });
+    try {
+      const res = await fetch(`/api/v1/plaid/sync/${firstItem.id}/retry`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Retry failed");
+      }
+      toast("Sync retry started.", { duration: 3000 });
+      mutate();
+    } catch {
+      toast.error("Something went wrong syncing your accounts. Try again.", {
+        duration: 5000,
+      });
+    }
+  }, [firstItem, mutate]);
+
+  function renderMainCard() {
+    if (dashboardState === "syncing" && firstItem?.latest_sync) {
+      return (
+        <SyncProgressCard
+          institutionName={firstItem.institution_name}
+          accountCount={firstItem.accounts.length}
+          syncStatus={firstItem.latest_sync.status}
+          syncStep={firstItem.latest_sync.step}
+          startedAt={firstItem.latest_sync.started_at}
+          onRetry={handleRetry}
+        />
+      );
+    }
+
+    if (dashboardState === "activation_complete" && accountStatus) {
+      return (
+        <ActivationCard
+          items={accountStatus.items}
+          onPlaidSuccess={handlePlaidSuccess}
+          onDismiss={() => setShowActivation(false)}
+        />
+      );
+    }
+
+    if (dashboardState === "connected" && accountStatus) {
+      return (
+        <ConnectedAccountsCard
+          items={accountStatus.items}
+          onPlaidSuccess={handlePlaidSuccess}
+        />
+      );
+    }
+
+    return <ConnectionCard onSuccess={handlePlaidSuccess} />;
+  }
+
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -97,7 +204,7 @@ export default function DashboardPage() {
           ))}
         </Box>
 
-        <GetStartedCard />
+        {renderMainCard()}
 
         <Box
           sx={{

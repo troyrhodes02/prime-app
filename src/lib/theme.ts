@@ -5,12 +5,12 @@ import { createTheme } from "@mui/material/styles";
 export const theme = createTheme({
   typography: {
     fontFamily: "var(--font-ibm-plex-sans), system-ui, sans-serif",
-    h1: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
-    h2: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
-    h3: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
-    h4: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
-    h5: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
-    h6: { fontFamily: "var(--font-space-grotesk), system-ui, sans-serif" },
+    h1: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
+    h2: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
+    h3: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
+    h4: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
+    h5: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
+    h6: { fontFamily: "var(--font-lexend), system-ui, sans-serif" },
   },
   palette: {
     primary: {

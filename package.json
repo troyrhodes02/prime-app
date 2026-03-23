@@ -23,12 +23,16 @@
     "@tailwindcss/postcss": "^4.2.2",
     "next": "16.2.1",
     "pg": "^8.20.0",
+    "plaid": "^41.4.0",
     "postcss": "^8.5.8",
     "prisma": "^7.5.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-plaid-link": "^4.1.1",
     "sonner": "^2.0.7",
-    "tailwindcss": "^4.2.2"
+    "swr": "^2.4.1",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20",

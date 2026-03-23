@@ -93,7 +93,7 @@ When producing the landing page implementation:
   - `head`
   - `body`
 - Use IBM Plex Sans (Google Fonts) as the primary font for body and UI text
-- Use Space Grotesk (Google Fonts) for headings and display text
+- Use Lexend (Google Fonts) for headings and display text
 - Use lucide icons via JavaScript when icons are needed
 - Use stroke width `1.5`
 - Keep the implementation responsive
@@ -107,7 +107,7 @@ Use the current P.R.I.M.E. brand language reflected in the product and screensho
 
 ### Typography
 - Primary font: IBM Plex Sans (body, labels, UI text)
-- Header font: Space Grotesk (headings, display text)
+- Header font: Lexend (headings, display text)
 
 ### Color Palette
 
