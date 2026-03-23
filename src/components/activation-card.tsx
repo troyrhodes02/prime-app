@@ -14,9 +14,10 @@ import type { AccountStatusItem } from "@/hooks/use-account-status";
 interface ActivationCardProps {
   items: AccountStatusItem[];
   onPlaidSuccess: (publicToken: string, metadata: Record<string, unknown>) => void;
+  onDismiss: () => void;
 }
 
-export function ActivationCard({ items, onPlaidSuccess }: ActivationCardProps) {
+export function ActivationCard({ items, onPlaidSuccess, onDismiss }: ActivationCardProps) {
   const { open, loading } = usePlaidLink({ onSuccess: onPlaidSuccess });
 
   return (
@@ -119,6 +120,14 @@ export function ActivationCard({ items, onPlaidSuccess }: ActivationCardProps) {
         sx={{ mt: 3, textTransform: "none" }}
       >
         Connect Another Account
+      </Button>
+
+      <Button
+        variant="text"
+        onClick={onDismiss}
+        sx={{ mt: 1, textTransform: "none", color: "grey.500", fontSize: "0.8125rem" }}
+      >
+        View connected accounts
       </Button>
     </Card>
   );

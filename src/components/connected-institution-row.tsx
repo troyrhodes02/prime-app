@@ -87,7 +87,7 @@ export function ConnectedInstitutionRow({ item }: ConnectedInstitutionRowProps) 
             gap: 0.5,
             px: 1,
             py: 0.25,
-            bgcolor: "success.50",
+            bgcolor: item.status === "ACTIVE" ? "success.50" : "warning.50",
             borderRadius: 1,
           }}
         >
@@ -96,14 +96,18 @@ export function ConnectedInstitutionRow({ item }: ConnectedInstitutionRowProps) 
               width: 6,
               height: 6,
               borderRadius: "50%",
-              bgcolor: "success.main",
+              bgcolor: item.status === "ACTIVE" ? "success.main" : "warning.main",
             }}
           />
           <Typography
             variant="caption"
-            sx={{ fontWeight: 500, color: "success.dark", fontSize: "0.6875rem" }}
+            sx={{
+              fontWeight: 500,
+              color: item.status === "ACTIVE" ? "success.dark" : "warning.dark",
+              fontSize: "0.6875rem",
+            }}
           >
-            Active
+            {item.status === "ACTIVE" ? "Active" : "Reconnect needed"}
           </Typography>
         </Box>
       </Box>

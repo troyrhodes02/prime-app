@@ -98,6 +98,8 @@ export default function DashboardPage() {
 
   const handlePlaidSuccess = useCallback(
     async (publicToken: string, metadata: Record<string, unknown>) => {
+      setShowActivation(false);
+
       try {
         const res = await fetch("/api/v1/plaid/exchange-token", {
           method: "POST",
@@ -149,6 +151,7 @@ export default function DashboardPage() {
         <ActivationCard
           items={accountStatus.items}
           onPlaidSuccess={handlePlaidSuccess}
+          onDismiss={() => setShowActivation(false)}
         />
       );
     }
