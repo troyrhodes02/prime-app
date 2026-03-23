@@ -95,6 +95,45 @@ describe("POST /api/v1/plaid/create-link-token", () => {
     );
   });
 
+  it("includes redirect_uri when PLAID_REDIRECT_URI is set", async () => {
+    process.env.PLAID_REDIRECT_URI = "https://app.example.com/oauth";
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "sb-123" } },
+    });
+    mockFindUnique.mockResolvedValue({ id: "user-1" });
+    mockLinkTokenCreate.mockResolvedValue({
+      data: { link_token: "link-sandbox-abc", expiration: "2026-03-22T12:00:00Z" },
+    });
+
+    await POST();
+
+    expect(mockLinkTokenCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirect_uri: "https://app.example.com/oauth",
+      }),
+    );
+    delete process.env.PLAID_REDIRECT_URI;
+  });
+
+  it("omits redirect_uri when PLAID_REDIRECT_URI is not set", async () => {
+    delete process.env.PLAID_REDIRECT_URI;
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "sb-123" } },
+    });
+    mockFindUnique.mockResolvedValue({ id: "user-1" });
+    mockLinkTokenCreate.mockResolvedValue({
+      data: { link_token: "link-sandbox-abc", expiration: "2026-03-22T12:00:00Z" },
+    });
+
+    await POST();
+
+    expect(mockLinkTokenCreate).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        redirect_uri: expect.anything(),
+      }),
+    );
+  });
+
   it("returns 502 when Plaid API fails", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "sb-123" } },

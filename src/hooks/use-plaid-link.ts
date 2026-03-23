@@ -35,11 +35,8 @@ export function usePlaidLink({ onSuccess }: UsePlaidLinkOptions) {
   }, [ready, linkToken, open]);
 
   const handleOpen = useCallback(async () => {
-    if (linkToken && ready) {
-      open();
-      return;
-    }
-
+    // Always fetch a fresh token — link tokens expire (4h default)
+    // and reusing a stale one silently breaks Plaid Link
     setLoading(true);
     pendingOpen.current = true;
 
@@ -60,7 +57,7 @@ export function usePlaidLink({ onSuccess }: UsePlaidLinkOptions) {
       setLoading(false);
       pendingOpen.current = false;
     }
-  }, [linkToken, ready, open]);
+  }, []);
 
   return {
     open: handleOpen,

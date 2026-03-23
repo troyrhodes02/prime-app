@@ -29,7 +29,7 @@ export async function POST() {
   }
 
   try {
-    const response = await plaidClient.linkTokenCreate({
+    const params: Parameters<typeof plaidClient.linkTokenCreate>[0] = {
       user: { client_user_id: user.id },
       client_name: "P.R.I.M.E.",
       products: (process.env.PLAID_PRODUCTS || "transactions")
@@ -39,7 +39,13 @@ export async function POST() {
         .split(",")
         .map((c) => c.trim() as CountryCode),
       language: "en",
-    });
+    };
+
+    if (process.env.PLAID_REDIRECT_URI) {
+      params.redirect_uri = process.env.PLAID_REDIRECT_URI;
+    }
+
+    const response = await plaidClient.linkTokenCreate(params);
 
     return NextResponse.json({
       link_token: response.data.link_token,
