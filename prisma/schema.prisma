@@ -13,7 +13,11 @@ model User {
   name       String?
   avatarUrl  String?
 
-  memberships Membership[]
+  memberships      Membership[]
+  plaidItems       PlaidItem[]
+  financialAccounts FinancialAccount[]
+  syncJobs         SyncJob[]
+  rawTransactions  RawTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -49,4 +53,135 @@ model Membership {
 
 enum MembershipRole {
   OWNER
+}
+
+model PlaidItem {
+  id               String          @id @default(cuid())
+  userId           String
+  plaidItemId      String          @unique
+  accessToken      String
+  institutionId    String?
+  institutionName  String?
+  status           PlaidItemStatus @default(CONNECTING)
+  consentExpiresAt DateTime?
+  lastSyncedAt     DateTime?
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts FinancialAccount[]
+  syncJobs SyncJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model FinancialAccount {
+  id                    String      @id @default(cuid())
+  userId                String
+  plaidItemId           String
+  plaidAccountId        String      @unique
+  name                  String
+  officialName          String?
+  type                  AccountType
+  subtype               String?
+  mask                  String?
+  currentBalanceCents   Int?
+  availableBalanceCents Int?
+  isoCurrencyCode       String      @default("USD")
+  isActive              Boolean     @default(true)
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItem    PlaidItem        @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+  transactions RawTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([plaidItemId])
+}
+
+model SyncJob {
+  id                 String        @id @default(cuid())
+  userId             String
+  plaidItemId        String
+  type               SyncJobType
+  status             SyncJobStatus @default(PENDING)
+  step               SyncStep      @default(CONNECTING)
+  startedAt          DateTime      @default(now())
+  completedAt        DateTime?
+  errorMessage       String?
+  accountsSynced     Int           @default(0)
+  transactionsSynced Int           @default(0)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItem PlaidItem @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([plaidItemId])
+}
+
+model RawTransaction {
+  id                 String    @id @default(cuid())
+  userId             String
+  financialAccountId String
+  plaidTransactionId String    @unique
+  amountCents        Int
+  isoCurrencyCode    String    @default("USD")
+  date               DateTime
+  authorizedDate     DateTime?
+  name               String
+  merchantName       String?
+  category           String[]
+  pending            Boolean   @default(false)
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([financialAccountId])
+  @@index([date])
+}
+
+enum PlaidItemStatus {
+  CONNECTING
+  ACTIVE
+  ERROR
+  INACTIVE
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT
+  LOAN
+  INVESTMENT
+  OTHER
+}
+
+enum SyncJobType {
+  INITIAL
+  REFRESH
+}
+
+enum SyncJobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum SyncStep {
+  CONNECTING
+  SYNCING_BALANCES
+  RETRIEVING_TRANSACTIONS
+  ANALYZING
+  DONE
 }
