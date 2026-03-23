@@ -42,6 +42,14 @@ vi.mock("@/lib/encryption", () => ({
   encrypt: vi.fn().mockReturnValue("encrypted-token"),
 }));
 
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return {
+    ...actual,
+    after: vi.fn((fn: () => Promise<void>) => fn()),
+  };
+});
+
 vi.mock("@/services/sync", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/sync")>();
   return {

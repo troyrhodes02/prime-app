@@ -10,7 +10,9 @@ import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import { toast } from "sonner";
 import { EmptyStateCard } from "@/components/empty-state-card";
 import { ConnectionCard } from "@/components/connection-card";
+import { SyncProgressCard } from "@/components/sync-progress-card";
 import { WelcomeModal } from "@/components/welcome-modal";
+import { useAccountStatus } from "@/hooks/use-account-status";
 
 const SUMMARY_CARDS = [
   { label: "Net Worth" },
@@ -54,7 +56,31 @@ function WelcomeModalController() {
   return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
 }
 
+type DashboardState = "pre_connection" | "syncing" | "connected";
+
+function deriveDashboardState(
+  hasConnectedAccounts: boolean,
+  hasActiveSync: boolean,
+  latestSyncStatus: string | null,
+): DashboardState {
+  if (!hasConnectedAccounts) return "pre_connection";
+  if (hasActiveSync) return "syncing";
+  if (latestSyncStatus === "FAILED") return "syncing";
+  return "connected";
+}
+
 export default function DashboardPage() {
+  const { data: accountStatus, mutate } = useAccountStatus();
+
+  const firstItem = accountStatus?.items[0] ?? null;
+  const latestSyncStatus = firstItem?.latest_sync?.status ?? null;
+
+  const dashboardState = deriveDashboardState(
+    accountStatus?.has_connected_accounts ?? false,
+    accountStatus?.has_active_sync ?? false,
+    latestSyncStatus,
+  );
+
   const handlePlaidSuccess = useCallback(async (publicToken: string, metadata: Record<string, unknown>) => {
     try {
       const res = await fetch("/api/v1/plaid/exchange-token", {
@@ -79,11 +105,44 @@ export default function DashboardPage() {
         throw new Error(err.message || "Failed to connect accounts");
       }
 
-      toast.success("Accounts connected successfully");
+      // Trigger immediate revalidation to start polling
+      mutate();
     } catch {
       toast.error("Failed to connect accounts. Please try again.");
     }
-  }, []);
+  }, [mutate]);
+
+  function renderMainCard() {
+    if (dashboardState === "syncing" && firstItem?.latest_sync) {
+      return (
+        <SyncProgressCard
+          institutionName={firstItem.institution_name}
+          accountCount={firstItem.accounts.length}
+          syncStatus={firstItem.latest_sync.status}
+          syncStep={firstItem.latest_sync.step}
+          startedAt={firstItem.latest_sync.started_at}
+        />
+      );
+    }
+
+    if (dashboardState === "connected") {
+      // Stub for PRI-20: ConnectedAccountsCard
+      // ConnectionCard kept so users can connect additional institutions
+      return (
+        <>
+          <Card variant="outlined" sx={{ p: 4, textAlign: "center" }}>
+            <Typography variant="body2" sx={{ color: "grey.500" }}>
+              Accounts connected — details coming in next update.
+            </Typography>
+          </Card>
+          <ConnectionCard onSuccess={handlePlaidSuccess} />
+        </>
+      );
+    }
+
+    return <ConnectionCard onSuccess={handlePlaidSuccess} />;
+  }
+
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -99,7 +158,7 @@ export default function DashboardPage() {
           ))}
         </Box>
 
-        <ConnectionCard onSuccess={handlePlaidSuccess} />
+        {renderMainCard()}
 
         <Box
           sx={{
