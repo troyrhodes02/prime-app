@@ -112,26 +112,6 @@ export default function DashboardPage() {
     }
   }, [mutate]);
 
-  const handleRetry = useCallback(async () => {
-    if (!firstItem?.latest_sync?.id) return;
-
-    try {
-      const res = await fetch("/api/v1/plaid/retry-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plaid_item_id: firstItem.id }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to retry sync");
-      }
-
-      mutate();
-    } catch {
-      toast.error("Failed to retry sync. Please try again.");
-    }
-  }, [firstItem, mutate]);
-
   function renderMainCard() {
     if (dashboardState === "syncing" && firstItem?.latest_sync) {
       return (
@@ -141,19 +121,22 @@ export default function DashboardPage() {
           syncStatus={firstItem.latest_sync.status}
           syncStep={firstItem.latest_sync.step}
           startedAt={firstItem.latest_sync.started_at}
-          onRetry={handleRetry}
         />
       );
     }
 
     if (dashboardState === "connected") {
       // Stub for PRI-20: ConnectedAccountsCard
+      // ConnectionCard kept so users can connect additional institutions
       return (
-        <Card variant="outlined" sx={{ p: 4, textAlign: "center" }}>
-          <Typography variant="body2" sx={{ color: "grey.500" }}>
-            Accounts connected — details coming in next update.
-          </Typography>
-        </Card>
+        <>
+          <Card variant="outlined" sx={{ p: 4, textAlign: "center" }}>
+            <Typography variant="body2" sx={{ color: "grey.500" }}>
+              Accounts connected — details coming in next update.
+            </Typography>
+          </Card>
+          <ConnectionCard onSuccess={handlePlaidSuccess} />
+        </>
       );
     }
 
