@@ -106,7 +106,12 @@ export function SyncStep({ label, status }: SyncStepProps) {
         variant="body2"
         sx={{
           fontWeight: 500,
-          color: status === "pending" ? "grey.400" : "grey.900",
+          color:
+            status === "pending"
+              ? "grey.400"
+              : status === "failed"
+                ? "error.main"
+                : "grey.900",
           flex: 1,
         }}
       >

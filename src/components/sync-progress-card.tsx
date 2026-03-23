@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
@@ -32,7 +33,7 @@ interface SyncProgressCardProps {
   syncStatus: string;
   syncStep: string;
   startedAt: string;
-  onRetry?: () => void;
+  onRetry?: () => Promise<void>;
 }
 
 function deriveStepStatus(
@@ -67,6 +68,17 @@ export function SyncProgressCard({
   onRetry,
 }: SyncProgressCardProps) {
   const [isSlow, setIsSlow] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetryClick = useCallback(async () => {
+    if (!onRetry || isRetrying) return;
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [onRetry, isRetrying]);
 
   useEffect(() => {
     const check = () => {
@@ -124,10 +136,12 @@ export function SyncProgressCard({
           variant="outlined"
           color="error"
           size="small"
-          onClick={onRetry}
+          onClick={handleRetryClick}
+          disabled={isRetrying}
+          startIcon={isRetrying ? <CircularProgress size={14} color="inherit" /> : undefined}
           sx={{ mt: 2, textTransform: "none" }}
         >
-          Retry
+          {isRetrying ? "Retrying…" : "Retry"}
         </Button>
       )}
 
@@ -140,7 +154,7 @@ export function SyncProgressCard({
         }}
       >
         {isFailed
-          ? "Something went wrong syncing your accounts."
+          ? "Something went wrong. You can retry below."
           : isSlow
             ? "Taking a bit longer than usual. Hang tight."
             : "This usually takes a minute or two."}
