@@ -3,13 +3,12 @@
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
-import AccountBalanceOutlined from "@mui/icons-material/AccountBalanceOutlined";
 import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { ConnectionCard } from "@/components/connection-card";
 import { WelcomeModal } from "@/components/welcome-modal";
 
 const SUMMARY_CARDS = [
@@ -39,33 +38,6 @@ function SummaryCard({ label }: { label: string }) {
   );
 }
 
-function GetStartedCard() {
-  return (
-    <Card variant="outlined" sx={{ p: 5, textAlign: "center" }}>
-      <AccountBalanceOutlined sx={{ fontSize: 48, color: "grey.400" }} />
-      <Typography variant="h6" sx={{ fontWeight: 600, color: "grey.900", mt: 2 }}>
-        Connect your financial accounts to get started
-      </Typography>
-      <Typography
-        variant="body2"
-        sx={{ color: "grey.500", maxWidth: 420, mx: "auto", mt: 1 }}
-      >
-        P.R.I.M.E. will automatically organize your transactions, track your spending,
-        and help you make confident financial decisions.
-      </Typography>
-      <Button variant="outlined" disabled sx={{ mt: 3 }}>
-        Connect Accounts
-      </Button>
-      <Typography
-        variant="caption"
-        sx={{ display: "block", color: "grey.400", mt: 1 }}
-      >
-        Coming soon
-      </Typography>
-    </Card>
-  );
-}
-
 // Isolated to a narrow Suspense boundary so the dashboard layout
 // remains server-renderable. useSearchParams() only suspends this component.
 function WelcomeModalController() {
@@ -79,6 +51,11 @@ function WelcomeModalController() {
   }
 
   return <WelcomeModal open={open} onClose={handleWelcomeClose} />;
+}
+
+function handlePlaidSuccess(publicToken: string, metadata: Record<string, unknown>) {
+  // PRI-18 will implement the exchange-token call here
+  console.log("[plaid] Success — public_token received", { publicToken: publicToken.slice(0, 10) + "...", metadata });
 }
 
 export default function DashboardPage() {
@@ -97,7 +74,7 @@ export default function DashboardPage() {
           ))}
         </Box>
 
-        <GetStartedCard />
+        <ConnectionCard onSuccess={handlePlaidSuccess} />
 
         <Box
           sx={{
