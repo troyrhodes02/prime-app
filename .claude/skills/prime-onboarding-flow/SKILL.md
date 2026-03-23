@@ -304,7 +304,7 @@ Define:
 
 Typography:
 - Primary font: IBM Plex Sans (body, labels, instructions)
-- Header font: Space Grotesk (step titles, value moments, headings)
+- Header font: Lexend (step titles, value moments, headings)
 
 Focus on:
 - clarity
