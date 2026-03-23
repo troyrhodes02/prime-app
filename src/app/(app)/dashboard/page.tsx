@@ -144,7 +144,7 @@ export default function DashboardPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Retry failed");
       }
-      toast.success("Accounts connected successfully.", { duration: 3000 });
+      toast("Sync retry started.", { duration: 3000 });
       mutate();
     } catch {
       toast.error("Something went wrong syncing your accounts. Try again.", {

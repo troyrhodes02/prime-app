@@ -61,37 +61,55 @@ export async function POST(
     );
   }
 
-  const latestSyncJob = plaidItem.syncJobs[0] ?? null;
+  // Validate FAILED status and create the new SyncJob atomically to prevent
+  // concurrent retries from both passing the check and starting the pipeline twice.
+  let syncJob: { id: string };
+  try {
+    ({ syncJob } = await prisma.$transaction(async (tx) => {
+      const latestSyncJob = await tx.syncJob.findFirst({
+        where: { plaidItemId: plaidItem.id },
+        orderBy: { createdAt: "desc" },
+        select: { status: true },
+      });
 
-  if (!latestSyncJob || latestSyncJob.status !== "FAILED") {
-    return NextResponse.json(
-      {
-        error: "invalid_state_transition",
-        message: "No failed sync job to retry",
-      },
-      { status: 400 },
-    );
+      if (!latestSyncJob || latestSyncJob.status !== "FAILED") {
+        throw Object.assign(new Error("No failed sync job to retry"), {
+          code: "invalid_state_transition",
+        });
+      }
+
+      const syncJob = await tx.syncJob.create({
+        data: {
+          userId: user.id,
+          plaidItemId: plaidItem.id,
+          type: "INITIAL",
+          status: "PENDING",
+          step: "CONNECTING",
+        },
+      });
+
+      await tx.plaidItem.update({
+        where: { id: plaidItem.id },
+        data: { status: "CONNECTING" },
+      });
+
+      return { syncJob };
+    }));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error as Error & { code?: string }).code === "invalid_state_transition"
+    ) {
+      return NextResponse.json(
+        {
+          error: "invalid_state_transition",
+          message: "No failed sync job to retry",
+        },
+        { status: 400 },
+      );
+    }
+    throw error;
   }
-
-  // Create new SyncJob and reset PlaidItem status atomically
-  const { syncJob } = await prisma.$transaction(async (tx) => {
-    const syncJob = await tx.syncJob.create({
-      data: {
-        userId: user.id,
-        plaidItemId: plaidItem.id,
-        type: "INITIAL",
-        status: "PENDING",
-        step: "CONNECTING",
-      },
-    });
-
-    await tx.plaidItem.update({
-      where: { id: plaidItem.id },
-      data: { status: "CONNECTING" },
-    });
-
-    return { syncJob };
-  });
 
   after(async () => {
     try {
