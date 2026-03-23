@@ -88,7 +88,8 @@ model FinancialAccount {
   mask                  String?
   currentBalanceCents   Int?
   availableBalanceCents Int?
-  isoCurrencyCode       String      @default("USD")
+  isoCurrencyCode       String?
+  unofficialCurrencyCode String?
   isActive              Boolean     @default(true)
 
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -131,7 +132,8 @@ model RawTransaction {
   financialAccountId String
   plaidTransactionId String    @unique
   amountCents        Int
-  isoCurrencyCode    String    @default("USD")
+  isoCurrencyCode    String?
+  unofficialCurrencyCode String?
   date               DateTime
   authorizedDate     DateTime?
   name               String
@@ -158,11 +160,11 @@ enum PlaidItemStatus {
 }
 
 enum AccountType {
-  CHECKING
-  SAVINGS
+  DEPOSITORY
   CREDIT
   LOAN
   INVESTMENT
+  BROKERAGE
   OTHER
 }
 

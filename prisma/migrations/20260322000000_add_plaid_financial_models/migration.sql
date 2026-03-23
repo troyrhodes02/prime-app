@@ -2,7 +2,7 @@
 CREATE TYPE "PlaidItemStatus" AS ENUM ('CONNECTING', 'ACTIVE', 'ERROR', 'INACTIVE');
 
 -- CreateEnum
-CREATE TYPE "AccountType" AS ENUM ('CHECKING', 'SAVINGS', 'CREDIT', 'LOAN', 'INVESTMENT', 'OTHER');
+CREATE TYPE "AccountType" AS ENUM ('DEPOSITORY', 'CREDIT', 'LOAN', 'INVESTMENT', 'BROKERAGE', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "SyncJobType" AS ENUM ('INITIAL', 'REFRESH');
@@ -43,7 +43,8 @@ CREATE TABLE "FinancialAccount" (
     "mask" TEXT,
     "currentBalanceCents" INTEGER,
     "availableBalanceCents" INTEGER,
-    "isoCurrencyCode" TEXT NOT NULL DEFAULT 'USD',
+    "isoCurrencyCode" TEXT,
+    "unofficialCurrencyCode" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -77,7 +78,8 @@ CREATE TABLE "RawTransaction" (
     "financialAccountId" TEXT NOT NULL,
     "plaidTransactionId" TEXT NOT NULL,
     "amountCents" INTEGER NOT NULL,
-    "isoCurrencyCode" TEXT NOT NULL DEFAULT 'USD',
+    "isoCurrencyCode" TEXT,
+    "unofficialCurrencyCode" TEXT,
     "date" TIMESTAMP(3) NOT NULL,
     "authorizedDate" TIMESTAMP(3),
     "name" TEXT NOT NULL,
