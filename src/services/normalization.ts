@@ -121,6 +121,7 @@ async function resolveDuplicate(
   userId: string,
   raw: RawTransaction,
   amountCents: number,
+  displayName: string,
 ): Promise<DuplicateResult> {
   // Case 1: This is a posted transaction — check if a pending version exists
   if (!raw.pending) {
@@ -142,11 +143,12 @@ async function resolveDuplicate(
       return { isDuplicate: false, survivorId: null };
     }
 
-    // Fuzzy match: same account + same amount + date within 3 days + pending
+    // Fuzzy match: same account + same merchant + same amount + date within 3 days + pending
     const fuzzyPending = await tx.normalizedTransaction.findFirst({
       where: {
         userId,
         financialAccountId: raw.financialAccountId,
+        displayName,
         amountCents,
         pending: true,
         isActive: true,
@@ -195,13 +197,16 @@ export async function runNormalizationPipeline(
   plaidItemId: string,
   tx: PrismaClient,
 ): Promise<NormalizationResult> {
+  // TODO(PRI-27): Re-normalization — raw transactions upserted on refresh syncs
+  // keep stale NormalizedTransaction records. Detect updated raws and re-normalize.
+
   // Find all raw transactions for this item that need normalization (USD only)
   const rawTransactions = await tx.rawTransaction.findMany({
     where: {
       userId,
       account: { plaidItemId },
       normalizedTransaction: null,
-      isoCurrencyCode: "USD",
+      OR: [{ isoCurrencyCode: "USD" }, { isoCurrencyCode: null }],
     },
     include: { account: true },
   });
@@ -215,7 +220,7 @@ export async function runNormalizationPipeline(
     const transactionType: TransactionType = amountCents < 0 ? "INCOME" : "EXPENSE";
     const category = mapCategory(raw.category, transactionType, displayName);
 
-    const duplicateResult = await resolveDuplicate(tx, userId, raw, amountCents);
+    const duplicateResult = await resolveDuplicate(tx, userId, raw, amountCents, displayName);
 
     if (duplicateResult.isDuplicate) {
       duplicatesResolved++;
