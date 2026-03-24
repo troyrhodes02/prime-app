@@ -11,6 +11,7 @@ import { AppHeader } from "./app-header";
 const ROUTE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/budget": "Budget",
+  "/transactions": "Transactions",
   "/goals": "Goals",
   "/purchases": "Purchases",
   "/settings": "Settings",
