@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
@@ -13,42 +13,53 @@ import { TransactionFilterBar } from "@/components/transaction-filter-bar";
 import { TransactionList } from "@/components/transaction-list";
 import { TransactionsEmptyState } from "@/components/transactions-empty-state";
 
+const VALID_TYPES = new Set(["all", "income", "expense"]);
+const VALID_DAYS = new Set([30, 90]);
+
 function TransactionsSkeleton() {
   return (
     <Card variant="outlined" sx={{ overflow: "hidden" }}>
       <Box sx={{ px: 2.5, py: 1.5, bgcolor: "grey.50", borderBottom: "1px solid", borderColor: "grey.200" }}>
-        <Skeleton variant="rectangular" width={400} height={32} sx={{ borderRadius: 1 }} />
+        <Skeleton variant="rectangular" sx={{ borderRadius: 1, width: { xs: "100%", sm: 400 }, height: 32 }} />
       </Box>
       {Array.from({ length: 8 }).map((_, i) => (
         <Box
           key={i}
           sx={{
             display: "flex",
-            alignItems: "center",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: { xs: 0.5, sm: 0 },
             px: 2.5,
             py: 1.75,
             borderBottom: i < 7 ? "1px solid" : "none",
             borderColor: "grey.100",
           }}
         >
-          <Skeleton width="40%" height={20} />
-          <Box sx={{ flex: 1 }} />
-          <Skeleton width={80} height={20} />
-          <Skeleton width={60} height={16} sx={{ ml: 2 }} />
-          <Skeleton width={80} height={16} sx={{ ml: 2 }} />
+          <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+            <Skeleton sx={{ width: { xs: "60%", sm: "40%" }, height: 20 }} />
+            <Box sx={{ flex: 1 }} />
+            <Skeleton sx={{ width: 80, height: 20 }} />
+          </Box>
+          <Box sx={{ display: { xs: "flex", sm: "contents" }, justifyContent: "flex-end", gap: 1 }}>
+            <Skeleton sx={{ width: 60, height: 16, ml: { xs: 0, sm: 2 } }} />
+            <Skeleton sx={{ width: 80, height: 16, ml: { xs: 0, sm: 2 } }} />
+          </Box>
         </Box>
       ))}
     </Card>
   );
 }
 
-export default function TransactionsPage() {
+function TransactionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const accountId = searchParams.get("accountId") ?? "all";
-  const type = (searchParams.get("type") ?? "all") as "all" | "income" | "expense";
-  const days = (Number(searchParams.get("days")) || 30) as 30 | 90;
+  const rawType = searchParams.get("type") ?? "all";
+  const type = (VALID_TYPES.has(rawType) ? rawType : "all") as "all" | "income" | "expense";
+  const rawDays = Number(searchParams.get("days")) || 30;
+  const days = (VALID_DAYS.has(rawDays) ? rawDays : 30) as 30 | 90;
 
   const { data: accountStatus, isLoading: accountsLoading } = useAccountStatus();
   const { data, isLoading: transactionsLoading } = useTransactions({
@@ -74,35 +85,16 @@ export default function TransactionsPage() {
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
   const isLoading = accountsLoading || transactionsLoading;
 
-  // Determine empty state variant
   if (!isLoading && !hasConnectedAccounts) {
-    return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: "grey.900" }}>
-          Transactions
-        </Typography>
-        <TransactionsEmptyState variant="no-accounts" />
-      </Box>
-    );
+    return <TransactionsEmptyState variant="no-accounts" />;
   }
 
   if (!isLoading && hasConnectedAccounts && data && data.total === 0) {
-    return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600, color: "grey.900" }}>
-          Transactions
-        </Typography>
-        <TransactionsEmptyState variant="processing" />
-      </Box>
-    );
+    return <TransactionsEmptyState variant="processing" />;
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 600, color: "grey.900" }}>
-        Transactions
-      </Typography>
-
+    <>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <AutoFixHighOutlined sx={{ fontSize: 16, color: "grey.400" }} />
         <Typography variant="caption" sx={{ color: "grey.500" }}>
@@ -135,6 +127,20 @@ export default function TransactionsPage() {
           )}
         </Card>
       )}
+    </>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <Typography variant="h5" sx={{ fontWeight: 600, color: "grey.900" }}>
+        Transactions
+      </Typography>
+
+      <Suspense fallback={<TransactionsSkeleton />}>
+        <TransactionsContent />
+      </Suspense>
     </Box>
   );
 }

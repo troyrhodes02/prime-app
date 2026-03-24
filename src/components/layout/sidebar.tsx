@@ -14,8 +14,8 @@ import { NavItem } from "./nav-item";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardOutlined },
-  { href: "/transactions", label: "Transactions", icon: ReceiptLongOutlined },
   { href: "/budget", label: "Budget", icon: AccountBalanceWalletOutlined },
+  { href: "/transactions", label: "Transactions", icon: ReceiptLongOutlined },
   { href: "/goals", label: "Goals", icon: FlagOutlined },
   { href: "/purchases", label: "Purchases", icon: ShoppingCartOutlined },
 ];
