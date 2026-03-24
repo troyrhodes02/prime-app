@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { plaidClient } from "@/lib/plaid";
 import { decrypt } from "@/lib/encryption";
-import { AccountType } from "@prisma/client";
+import { AccountType, type PrismaClient } from "@prisma/client";
+import { runNormalizationPipeline } from "@/services/normalization";
 
 export function toCents(amount: number | null | undefined): number | null {
   if (amount === null || amount === undefined) return null;
@@ -166,12 +167,17 @@ export async function runSyncPipeline(syncJobId: string): Promise<void> {
       transactionsSynced++;
     }
 
-    // Step 3: ANALYZING → DONE
+    // Step 3: ANALYZING — run normalization pipeline
     await prisma.syncJob.update({
       where: { id: syncJobId },
       data: { step: "ANALYZING" },
     });
 
+    await prisma.$transaction(async (tx) => {
+      return runNormalizationPipeline(syncJob.userId, syncJob.plaidItemId, tx as PrismaClient);
+    });
+
+    // Step 4: DONE
     await prisma.syncJob.update({
       where: { id: syncJobId },
       data: {
