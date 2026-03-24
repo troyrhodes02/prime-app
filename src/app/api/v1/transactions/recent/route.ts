@@ -49,7 +49,7 @@ export async function GET() {
       id: t.id,
       amount_cents: t.amountCents,
       iso_currency_code: t.isoCurrencyCode,
-      date: t.date.toISOString(),
+      date: t.date.toISOString().split("T")[0],
       display_name: t.displayName,
       transaction_type: t.transactionType,
       pending: t.pending,

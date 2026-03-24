@@ -105,7 +105,7 @@ describe("GET /api/v1/transactions", () => {
       id: "txn-1",
       amount_cents: 4299,
       iso_currency_code: "USD",
-      date: "2026-03-22T00:00:00.000Z",
+      date: "2026-03-22",
       display_name: "Starbucks",
       original_name: "TST* STARBUCKS #12345",
       merchant_name: "Starbucks",

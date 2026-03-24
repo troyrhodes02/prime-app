@@ -48,11 +48,14 @@ export async function GET(request: NextRequest) {
 
   const { accountId, type, days } = parsed.data;
 
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
   const where: Prisma.NormalizedTransactionWhereInput = {
     userId: user.id,
     isActive: true,
     date: {
-      gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+      gte: new Date(startOfToday.getTime() - days * 24 * 60 * 60 * 1000),
     },
   };
 
@@ -92,7 +95,7 @@ export async function GET(request: NextRequest) {
       id: t.id,
       amount_cents: t.amountCents,
       iso_currency_code: t.isoCurrencyCode,
-      date: t.date.toISOString(),
+      date: t.date.toISOString().split("T")[0],
       display_name: t.displayName,
       original_name: t.originalName,
       merchant_name: t.merchantName,
