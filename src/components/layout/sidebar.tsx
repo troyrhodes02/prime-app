@@ -8,11 +8,13 @@ import DashboardOutlined from "@mui/icons-material/DashboardOutlined";
 import AccountBalanceWalletOutlined from "@mui/icons-material/AccountBalanceWalletOutlined";
 import FlagOutlined from "@mui/icons-material/FlagOutlined";
 import ShoppingCartOutlined from "@mui/icons-material/ShoppingCartOutlined";
+import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import { NavItem } from "./nav-item";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: DashboardOutlined },
+  { href: "/transactions", label: "Transactions", icon: ReceiptLongOutlined },
   { href: "/budget", label: "Budget", icon: AccountBalanceWalletOutlined },
   { href: "/goals", label: "Goals", icon: FlagOutlined },
   { href: "/purchases", label: "Purchases", icon: ShoppingCartOutlined },
