@@ -9,12 +9,14 @@ import LightbulbOutlined from "@mui/icons-material/LightbulbOutlined";
 import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import { toast } from "sonner";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { RecentActivityCard } from "@/components/recent-activity-card";
 import { ConnectionCard } from "@/components/connection-card";
 import { SyncProgressCard } from "@/components/sync-progress-card";
 import { ActivationCard } from "@/components/activation-card";
 import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { useAccountStatus } from "@/hooks/use-account-status";
+import { useRecentTransactions } from "@/hooks/use-recent-transactions";
 
 const SUMMARY_CARDS = [
   { label: "Net Worth" },
@@ -64,6 +66,7 @@ type DashboardState =
 
 export default function DashboardPage() {
   const { data: accountStatus, mutate } = useAccountStatus();
+  const { data: recentData } = useRecentTransactions();
 
   const firstItem = accountStatus?.items[0] ?? null;
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
@@ -213,12 +216,16 @@ export default function DashboardPage() {
             gap: 2,
           }}
         >
-          <EmptyStateCard
-            title="Recent Activity"
-            icon={ReceiptLongOutlined}
-            heading="No transactions yet"
-            description="Transactions will appear here once your accounts are connected."
-          />
+          {recentData && recentData.transactions.length > 0 ? (
+            <RecentActivityCard transactions={recentData.transactions} />
+          ) : (
+            <EmptyStateCard
+              title="Recent Activity"
+              icon={ReceiptLongOutlined}
+              heading="No transactions yet"
+              description="Transactions will appear here once your accounts are connected."
+            />
+          )}
           <EmptyStateCard
             title="Insights"
             icon={LightbulbOutlined}
