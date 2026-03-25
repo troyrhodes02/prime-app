@@ -3,6 +3,7 @@ import { plaidClient } from "@/lib/plaid";
 import { decrypt } from "@/lib/encryption";
 import { AccountType, type PrismaClient } from "@prisma/client";
 import { runNormalizationPipeline } from "@/services/normalization";
+import { computeBaseline } from "@/services/baseline";
 
 export function toCents(amount: number | null | undefined): number | null {
   if (amount === null || amount === undefined) return null;
@@ -176,6 +177,16 @@ export async function runSyncPipeline(syncJobId: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
       return runNormalizationPipeline(syncJob.userId, syncJob.plaidItemId, tx as PrismaClient);
     });
+
+    // Step 3.5: Compute financial baseline (non-blocking)
+    try {
+      await computeBaseline(syncJob.userId);
+    } catch (error) {
+      console.error(
+        `Baseline computation failed for syncJob=${syncJobId}:`,
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    }
 
     // Step 4: DONE
     await prisma.syncJob.update({
