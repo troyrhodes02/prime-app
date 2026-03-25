@@ -41,6 +41,7 @@ describe("re-normalization", () => {
           id: "norm-1",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: BEFORE,
           displayName: "Old Merchant",
           amountCents: 500,
@@ -52,6 +53,9 @@ describe("re-normalization", () => {
             amountCents: 600,
             category: ["Food and Drink"],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
             updatedAt: AFTER,
           },
         },
@@ -63,7 +67,7 @@ describe("re-normalization", () => {
     expect(result.updated).toBe(1);
     expect(updatedRecords).toHaveLength(1);
     expect(updatedRecords[0].where).toEqual({ id: "norm-1" });
-    expect(updatedRecords[0].data).toEqual({
+    expect(updatedRecords[0].data).toMatchObject({
       displayName: "New Merchant",
       originalName: "NEW MERCHANT NAME",
       merchantName: "New Merchant",
@@ -81,6 +85,7 @@ describe("re-normalization", () => {
           id: "norm-1",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: AFTER,
           displayName: "Merchant",
           amountCents: 500,
@@ -92,6 +97,9 @@ describe("re-normalization", () => {
             amountCents: 500,
             category: [],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
             updatedAt: BEFORE,
           },
         },
@@ -111,7 +119,11 @@ describe("re-normalization", () => {
           id: "norm-1",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: NOW,
+          displayName: "Merchant",
+          amountCents: 500,
+          pending: false,
           rawTransaction: {
             id: "raw-1",
             name: "MERCHANT",
@@ -119,6 +131,9 @@ describe("re-normalization", () => {
             amountCents: 500,
             category: [],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
             updatedAt: NOW,
           },
         },
@@ -138,7 +153,11 @@ describe("re-normalization", () => {
           id: "norm-1",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: BEFORE,
+          displayName: "Employer Direct Dep",
+          amountCents: -245000,
+          pending: false,
           rawTransaction: {
             id: "raw-1",
             name: "EMPLOYER DIRECT DEP",
@@ -146,6 +165,9 @@ describe("re-normalization", () => {
             amountCents: -245000,
             category: ["Transfer", "Deposit"],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-20"),
             updatedAt: AFTER,
           },
         },
@@ -162,14 +184,18 @@ describe("re-normalization", () => {
     });
   });
 
-  it("re-normalizes pending→posted transition", async () => {
+  it("re-normalizes pending→posted transition and re-runs dedup", async () => {
     const { tx, updatedRecords } = makeMockTx({
       existingNormalized: [
         {
           id: "norm-1",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: BEFORE,
+          displayName: "Starbucks",
+          amountCents: 485,
+          pending: true,
           rawTransaction: {
             id: "raw-1",
             name: "STARBUCKS",
@@ -177,6 +203,9 @@ describe("re-normalization", () => {
             amountCents: 485,
             category: ["Food and Drink"],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
             updatedAt: AFTER,
           },
         },
@@ -189,6 +218,8 @@ describe("re-normalization", () => {
     expect(updatedRecords[0].data).toMatchObject({
       pending: false,
     });
+    // findFirst was called for dedup since pending changed
+    expect(tx.normalizedTransaction.findFirst).toHaveBeenCalled();
   });
 
   it("handles mixed stale and fresh records", async () => {
@@ -198,7 +229,11 @@ describe("re-normalization", () => {
           id: "norm-stale",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: BEFORE,
+          displayName: "Updated",
+          amountCents: 1000,
+          pending: false,
           rawTransaction: {
             id: "raw-1",
             name: "UPDATED",
@@ -206,6 +241,9 @@ describe("re-normalization", () => {
             amountCents: 1000,
             category: [],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
             updatedAt: AFTER,
           },
         },
@@ -213,7 +251,11 @@ describe("re-normalization", () => {
           id: "norm-fresh",
           userId: "user-1",
           isActive: true,
+          duplicateOf: null,
           updatedAt: AFTER,
+          displayName: "Unchanged",
+          amountCents: 500,
+          pending: false,
           rawTransaction: {
             id: "raw-2",
             name: "UNCHANGED",
@@ -221,6 +263,9 @@ describe("re-normalization", () => {
             amountCents: 500,
             category: [],
             pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-2",
+            date: new Date("2026-03-21"),
             updatedAt: BEFORE,
           },
         },
@@ -232,6 +277,86 @@ describe("re-normalization", () => {
     expect(result.updated).toBe(1);
     expect(updatedRecords).toHaveLength(1);
     expect(updatedRecords[0].where).toEqual({ id: "norm-stale" });
+  });
+
+  it("marks record as duplicate when dedup fields change and match found", async () => {
+    const mockFindFirst = vi.fn()
+      // First call from resolveDuplicate (exact plaidTransactionId match) — finds posted version
+      .mockResolvedValueOnce({ id: "norm-posted", pending: false, isActive: true });
+
+    const { tx, updatedRecords } = makeMockTx({
+      existingNormalized: [
+        {
+          id: "norm-pending",
+          userId: "user-1",
+          isActive: true,
+          duplicateOf: null,
+          updatedAt: BEFORE,
+          displayName: "Starbucks",
+          amountCents: 485,
+          pending: false,
+          rawTransaction: {
+            id: "raw-1",
+            name: "STARBUCKS",
+            merchantName: "Starbucks",
+            amountCents: 485,
+            category: ["Food and Drink"],
+            pending: true,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
+            updatedAt: AFTER,
+          },
+        },
+      ],
+    });
+
+    // Override findFirst to simulate finding a posted duplicate
+    tx.normalizedTransaction.findFirst = mockFindFirst;
+
+    const result = await runNormalizationPipeline("user-1", "item-1", tx as never);
+
+    expect(result.updated).toBe(1);
+    expect(result.duplicatesResolved).toBe(1);
+    expect(updatedRecords[0].data).toMatchObject({
+      isActive: false,
+      duplicateOf: "norm-posted",
+      pending: true,
+    });
+  });
+
+  it("skips dedup re-run when dedup fields are unchanged", async () => {
+    const { tx } = makeMockTx({
+      existingNormalized: [
+        {
+          id: "norm-1",
+          userId: "user-1",
+          isActive: true,
+          duplicateOf: null,
+          updatedAt: BEFORE,
+          displayName: "Starbucks",
+          amountCents: 485,
+          pending: false,
+          rawTransaction: {
+            id: "raw-1",
+            name: "STARBUCKS",
+            merchantName: "Starbucks",
+            amountCents: 485,
+            category: ["Food and Drink", "Coffee Shop"],
+            pending: false,
+            financialAccountId: "acc-1",
+            plaidTransactionId: "plaid-1",
+            date: new Date("2026-03-22"),
+            updatedAt: AFTER,
+          },
+        },
+      ],
+    });
+
+    await runNormalizationPipeline("user-1", "item-1", tx as never);
+
+    // findFirst should not be called for dedup since only category changed
+    expect(tx.normalizedTransaction.findFirst).not.toHaveBeenCalled();
   });
 
   it("returns created, duplicatesResolved, and updated counts", async () => {

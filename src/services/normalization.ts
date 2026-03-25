@@ -269,6 +269,24 @@ export async function runNormalizationPipeline(
     const transactionType: TransactionType = amountCents < 0 ? "INCOME" : "EXPENSE";
     const category = mapCategory(raw.category, transactionType, displayName);
 
+    // Re-run dedup when dedup-relevant fields changed
+    const dedupFieldsChanged =
+      norm.pending !== raw.pending ||
+      norm.amountCents !== amountCents ||
+      norm.displayName !== displayName;
+
+    let isActive = norm.isActive;
+    let duplicateOf = norm.duplicateOf;
+
+    if (dedupFieldsChanged) {
+      const dedupResult = await resolveDuplicate(tx, userId, raw, amountCents, displayName);
+      if (dedupResult.isDuplicate) {
+        isActive = false;
+        duplicateOf = dedupResult.survivorId ?? null;
+        duplicatesResolved++;
+      }
+    }
+
     await tx.normalizedTransaction.update({
       where: { id: norm.id },
       data: {
@@ -279,6 +297,8 @@ export async function runNormalizationPipeline(
         transactionType,
         category,
         pending: raw.pending,
+        isActive,
+        duplicateOf,
       },
     });
 
