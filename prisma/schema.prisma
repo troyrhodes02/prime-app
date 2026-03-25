@@ -18,6 +18,7 @@ model User {
   financialAccounts FinancialAccount[]
   syncJobs         SyncJob[]
   rawTransactions  RawTransaction[]
+  normalizedTransactions NormalizedTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -95,6 +96,7 @@ model FinancialAccount {
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   plaidItem    PlaidItem        @relation(fields: [plaidItemId], references: [id], onDelete: Cascade)
   transactions RawTransaction[]
+  normalizedTransactions NormalizedTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -143,6 +145,7 @@ model RawTransaction {
 
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   account FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Cascade)
+  normalizedTransaction NormalizedTransaction?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -186,4 +189,55 @@ enum SyncStep {
   RETRIEVING_TRANSACTIONS
   ANALYZING
   DONE
+}
+
+enum TransactionCategory {
+  FOOD_AND_DRINK
+  SHOPPING
+  TRANSPORTATION
+  HOUSING
+  ENTERTAINMENT
+  HEALTH
+  PERSONAL
+  INCOME
+  TRANSFER
+  UTILITIES
+  SUBSCRIPTIONS
+  UNCATEGORIZED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model NormalizedTransaction {
+  id                  String              @id @default(cuid())
+  userId              String
+  financialAccountId  String
+  rawTransactionId    String              @unique
+  plaidTransactionId  String
+  amountCents         Int
+  isoCurrencyCode     String              @default("USD")
+  date                DateTime
+  displayName         String
+  originalName        String
+  merchantName        String?
+  category            TransactionCategory @default(UNCATEGORIZED)
+  transactionType     TransactionType
+  pending             Boolean             @default(false)
+  duplicateOf         String?
+  isActive            Boolean             @default(true)
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Cascade)
+  rawTransaction RawTransaction   @relation(fields: [rawTransactionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, isActive, date])
+  @@index([financialAccountId])
+  @@index([plaidTransactionId])
 }
