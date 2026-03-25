@@ -19,6 +19,7 @@ model User {
   syncJobs         SyncJob[]
   rawTransactions  RawTransaction[]
   normalizedTransactions NormalizedTransaction[]
+  financialBaseline      FinancialBaseline?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -211,6 +212,12 @@ enum TransactionType {
   EXPENSE
 }
 
+enum BaselineStatus {
+  READY
+  INSUFFICIENT_DATA
+  STALE
+}
+
 model NormalizedTransaction {
   id                  String              @id @default(cuid())
   userId              String
@@ -240,4 +247,28 @@ model NormalizedTransaction {
   @@index([userId, isActive, date])
   @@index([financialAccountId])
   @@index([plaidTransactionId])
+}
+
+model FinancialBaseline {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  monthlyIncomeCents   Int
+  monthlySpendingCents Int
+  availableCents       Int
+
+  windowDays            Int
+  transactionCount      Int
+  oldestTransactionDate DateTime
+  newestTransactionDate DateTime
+
+  status     BaselineStatus @default(INSUFFICIENT_DATA)
+  computedAt DateTime       @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
