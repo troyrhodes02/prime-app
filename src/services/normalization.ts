@@ -190,6 +190,7 @@ async function resolveDuplicate(
 export interface NormalizationResult {
   created: number;
   duplicatesResolved: number;
+  updated: number;
 }
 
 export async function runNormalizationPipeline(
@@ -197,9 +198,6 @@ export async function runNormalizationPipeline(
   plaidItemId: string,
   tx: PrismaClient,
 ): Promise<NormalizationResult> {
-  // TODO(PRI-27): Re-normalization — raw transactions upserted on refresh syncs
-  // keep stale NormalizedTransaction records. Detect updated raws and re-normalize.
-
   // Find all raw transactions for this item that need normalization (USD only)
   const rawTransactions = await tx.rawTransaction.findMany({
     where: {
@@ -249,5 +247,43 @@ export async function runNormalizationPipeline(
     created++;
   }
 
-  return { created, duplicatesResolved };
+  // Re-normalization: detect stale NormalizedTransaction records where the
+  // underlying RawTransaction was updated after the normalized record.
+  const staleNormalized = await tx.normalizedTransaction.findMany({
+    where: {
+      userId,
+      account: { plaidItemId },
+      isActive: true,
+    },
+    include: { rawTransaction: true },
+  });
+
+  let updated = 0;
+
+  for (const norm of staleNormalized) {
+    if (norm.rawTransaction.updatedAt <= norm.updatedAt) continue;
+
+    const raw = norm.rawTransaction;
+    const displayName = cleanMerchantName(raw.name, raw.merchantName);
+    const amountCents = raw.amountCents;
+    const transactionType: TransactionType = amountCents < 0 ? "INCOME" : "EXPENSE";
+    const category = mapCategory(raw.category, transactionType, displayName);
+
+    await tx.normalizedTransaction.update({
+      where: { id: norm.id },
+      data: {
+        displayName,
+        originalName: raw.name,
+        merchantName: raw.merchantName ?? null,
+        amountCents,
+        transactionType,
+        category,
+        pending: raw.pending,
+      },
+    });
+
+    updated++;
+  }
+
+  return { created, duplicatesResolved, updated };
 }
