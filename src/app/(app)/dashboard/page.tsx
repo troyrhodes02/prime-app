@@ -66,7 +66,11 @@ type DashboardState =
 
 export default function DashboardPage() {
   const { data: accountStatus, mutate } = useAccountStatus();
-  const { data: recentData } = useRecentTransactions();
+  const {
+    data: recentData,
+    isLoading: recentLoading,
+    mutate: recentMutate,
+  } = useRecentTransactions();
 
   const firstItem = accountStatus?.items[0] ?? null;
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
@@ -90,6 +94,17 @@ export default function DashboardPage() {
       setShowActivation(true);
     }
   }, [hasActiveSync, hasConnectedAccounts, latestSyncStatus]);
+
+  // Revalidate recent transactions when sync completes so the card updates live.
+  const prevSyncActive = useRef(false);
+  useEffect(() => {
+    if (hasActiveSync) {
+      prevSyncActive.current = true;
+    } else if (prevSyncActive.current) {
+      prevSyncActive.current = false;
+      recentMutate();
+    }
+  }, [hasActiveSync, recentMutate]);
 
   const dashboardState: DashboardState = (() => {
     if (!hasConnectedAccounts) return "pre_connection";
@@ -216,7 +231,7 @@ export default function DashboardPage() {
             gap: 2,
           }}
         >
-          {recentData && recentData.transactions.length > 0 ? (
+          {!recentLoading && recentData && recentData.transactions.length > 0 ? (
             <RecentActivityCard transactions={recentData.transactions} />
           ) : (
             <EmptyStateCard
