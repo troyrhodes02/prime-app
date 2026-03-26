@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { computeBaseline } from "../baseline";
 
 function makeDate(daysAgo: number): Date {
-  const d = new Date("2026-03-25T12:00:00Z");
-  d.setDate(d.getDate() - daysAgo);
-  return d;
+  return new Date(Date.UTC(2026, 2, 25 - daysAgo));
 }
 
 function makeTxn(overrides: Partial<{
@@ -497,5 +495,108 @@ describe("computeBaseline — user isolation", () => {
         where: expect.objectContaining({ userId: "user-A" }),
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: Day iteration produces exactly windowDays entries (DST-safe)
+// ---------------------------------------------------------------------------
+
+describe("computeBaseline — UTC-safe day iteration", () => {
+  it("windowDays matches the actual number of unique days", async () => {
+    // 61 days of data spanning a DST boundary (March 8 2026 spring forward)
+    const txns = [];
+    for (let i = 0; i <= 60; i++) {
+      txns.push(makeTxn({
+        id: `day-${i}`,
+        amountCents: 1000,
+        date: new Date(Date.UTC(2026, 1, 1 + i)), // Feb 1 through Apr 2
+        transactionType: "EXPENSE",
+      }));
+    }
+    txns.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const { client } = makeMockClient(txns);
+    const result = await computeBaseline("user-1", client as any) as any;
+
+    expect(result.status).toBe("READY");
+    expect(result.windowDays).toBe(61);
+  });
+
+  it("consistent spending across DST boundary — no duplicate/skipped days", async () => {
+    // Create transactions around the March 8 2026 DST boundary
+    // If day iteration duplicates a key, spending for that day doubles
+    const txns = [];
+    for (let i = 0; i <= 40; i++) {
+      txns.push(makeTxn({
+        id: `txn-${i}`,
+        amountCents: 1000, // exactly $10 per day
+        date: new Date(Date.UTC(2026, 2, 1 + i)), // March 1 through April 10
+        transactionType: "EXPENSE",
+      }));
+    }
+    txns.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const { client } = makeMockClient(txns);
+    const result = await computeBaseline("user-1", client as any) as any;
+
+    // With exactly $10/day for 41 days, trimmed mean should be close to $10/day * 30.44
+    // The trim removes top 5% of spending days (floor(41 * 0.05) = 2, but min 1)
+    // All days are identical ($10), so trimming doesn't change the mean
+    // Monthly = round(1000 * 30.44) = 30440
+    expect(result.monthlySpendingCents).toBe(Math.round(1000 * 30.44));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression: Trim count based on spending days, not total window days
+// ---------------------------------------------------------------------------
+
+describe("computeBaseline — trim count uses spending days", () => {
+  it("sparse spender: trimming 5% of spending days, not 5% of all days", async () => {
+    // 91-day window, only 20 spending days — all $100/day
+    const txns = [];
+    // First and last transaction define the window
+    txns.push(makeTxn({
+      id: "first",
+      amountCents: 10000,
+      date: new Date(Date.UTC(2025, 11, 25)), // Dec 25
+      transactionType: "EXPENSE",
+    }));
+    txns.push(makeTxn({
+      id: "last",
+      amountCents: 10000,
+      date: new Date(Date.UTC(2026, 2, 25)), // Mar 25
+      transactionType: "EXPENSE",
+    }));
+    // 18 more spending days in between
+    for (let i = 1; i <= 18; i++) {
+      txns.push(makeTxn({
+        id: `mid-${i}`,
+        amountCents: 10000,
+        date: new Date(Date.UTC(2026, 0, i * 4)), // Jan 4, 8, 12, ...
+        transactionType: "EXPENSE",
+      }));
+    }
+
+    txns.sort((a, b) => a.date.getTime() - b.date.getTime());
+    const { client } = makeMockClient(txns);
+    const result = await computeBaseline("user-1", client as any) as any;
+
+    // 20 spending days, all identical $100
+    // trimCount = max(1, floor(20 * 0.05)) = 1
+    // Removing 1 of 20 identical days doesn't change the mean
+    // Total window = 91 days, so daily average = (20 * 10000) / 90 after trim
+    // With the old bug (floor(91 * 0.05) = 4), we'd remove 4 of 20 = much lower
+    // The correct result: trimming 1 day from sorted array of 91 entries
+    // (71 zeros + 20 at 10000), remove the top 1 → still 19 days at 10000
+    // mean = (19 * 10000) / 90 = 2111.11, monthly = round(2111.11 * 30.44) = 64262
+
+    // The key assertion: spending should NOT be dramatically understated
+    // If trim was based on sorted.length (91), trimCount would be 4,
+    // removing 4 spending days → mean = (16 * 10000) / 87 = 1839.08 → monthly = 55,983
+    // With correct trim (1 day), result should be higher
+    expect(result.monthlySpendingCents).toBeGreaterThan(56000);
+    expect(result.status).toBe("READY");
   });
 });

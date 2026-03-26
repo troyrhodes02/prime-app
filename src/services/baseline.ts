@@ -80,10 +80,12 @@ function differenceInDays(a: Date, b: Date): number {
   return Math.floor((utcA - utcB) / msPerDay);
 }
 
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
+function addDaysUTC(date: Date, days: number): Date {
+  return new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate() + days,
+  ));
 }
 
 interface BaselineData {
@@ -122,8 +124,12 @@ export async function computeBaseline(
 ): Promise<FinancialBaseline> {
   const client = tx ?? prisma;
 
-  const windowStart = new Date();
-  windowStart.setDate(windowStart.getDate() - 90);
+  const now = new Date();
+  const windowStart = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - 90,
+  ));
 
   const transactions: TransactionRow[] =
     await client.normalizedTransaction.findMany({
@@ -221,7 +227,7 @@ export async function computeBaseline(
 
   // Fill in zero-spending days within the window
   const allDays: number[] = [];
-  for (let d = new Date(oldestDate); d <= newestDate; d = addDays(d, 1)) {
+  for (let d = new Date(oldestDate); d <= newestDate; d = addDaysUTC(d, 1)) {
     const key = formatDateKey(d);
     allDays.push(dailySpending.get(key) ?? 0);
   }
@@ -232,7 +238,7 @@ export async function computeBaseline(
 
   let trimmedDailyTotals: number[];
   if (spendingDayCount >= MIN_SPENDING_DAYS_FOR_TRIM) {
-    const trimCount = Math.max(1, Math.floor(sorted.length * TRIM_PERCENTAGE));
+    const trimCount = Math.max(1, Math.floor(spendingDayCount * TRIM_PERCENTAGE));
     trimmedDailyTotals = sorted.slice(0, sorted.length - trimCount);
   } else {
     trimmedDailyTotals = sorted;
