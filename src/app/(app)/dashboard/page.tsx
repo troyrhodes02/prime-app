@@ -15,16 +15,36 @@ import { SyncProgressCard } from "@/components/sync-progress-card";
 import { ActivationCard } from "@/components/activation-card";
 import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
+import { BaselineCard } from "@/components/baseline-card";
 import { useAccountStatus } from "@/hooks/use-account-status";
 import { useRecentTransactions } from "@/hooks/use-recent-transactions";
+import { useBaseline } from "@/hooks/use-baseline";
 
-const SUMMARY_CARDS = [
-  { label: "Net Worth" },
-  { label: "Spending This Month" },
-  { label: "Upcoming Bills" },
-];
+function formatCurrency(cents: number): string {
+  const dollars = cents / 100;
+  return dollars.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
 
-function SummaryCard({ label }: { label: string }) {
+function SummaryCard({
+  label,
+  amount,
+  amountColor,
+  prefix,
+  note,
+}: {
+  label: string;
+  amount?: number | null;
+  amountColor?: string;
+  prefix?: string;
+  note?: string;
+}) {
+  const hasValue = amount != null;
+
   return (
     <Card variant="outlined" sx={{ p: 2.5 }}>
       <Typography
@@ -38,9 +58,25 @@ function SummaryCard({ label }: { label: string }) {
       >
         {label}
       </Typography>
-      <Typography variant="h6" sx={{ fontWeight: 600, color: "grey.300", mt: 0.5 }}>
-        —
+      <Typography
+        variant={hasValue ? "h5" : "h6"}
+        sx={{
+          fontWeight: 600,
+          color: hasValue ? amountColor : "grey.300",
+          mt: 0.5,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {hasValue ? `${prefix}${formatCurrency(amount)}` : "—"}
       </Typography>
+      {hasValue && note && (
+        <Typography
+          variant="caption"
+          sx={{ color: "grey.500", mt: 0.5, display: "block" }}
+        >
+          {note}
+        </Typography>
+      )}
     </Card>
   );
 }
@@ -71,6 +107,7 @@ export default function DashboardPage() {
     isLoading: recentLoading,
     mutate: recentMutate,
   } = useRecentTransactions();
+  const { data: baseline, mutate: baselineMutate } = useBaseline();
 
   const firstItem = accountStatus?.items[0] ?? null;
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
@@ -95,7 +132,7 @@ export default function DashboardPage() {
     }
   }, [hasActiveSync, hasConnectedAccounts, latestSyncStatus]);
 
-  // Revalidate recent transactions when sync completes so the card updates live.
+  // Revalidate recent transactions and baseline when sync completes.
   const prevSyncActive = useRef(false);
   useEffect(() => {
     if (hasActiveSync) {
@@ -103,8 +140,9 @@ export default function DashboardPage() {
     } else if (prevSyncActive.current) {
       prevSyncActive.current = false;
       recentMutate();
+      baselineMutate();
     }
-  }, [hasActiveSync, recentMutate]);
+  }, [hasActiveSync, recentMutate, baselineMutate]);
 
   const dashboardState: DashboardState = (() => {
     if (!hasConnectedAccounts) return "pre_connection";
@@ -113,6 +151,11 @@ export default function DashboardPage() {
     if (showActivation) return "activation_complete";
     return "connected";
   })();
+
+  // Determine baseline-driven values for summary cards
+  const baselineReady =
+    dashboardState === "connected" &&
+    baseline?.status === "ready";
 
   const handlePlaidSuccess = useCallback(
     async (publicToken: string, metadata: Record<string, unknown>) => {
@@ -207,6 +250,11 @@ export default function DashboardPage() {
     return <ConnectionCard onSuccess={handlePlaidSuccess} />;
   }
 
+  const showBaselineCard =
+    dashboardState === "connected" &&
+    baseline != null &&
+    (baseline.status === "ready" || baseline.status === "insufficient_data");
+
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -217,10 +265,34 @@ export default function DashboardPage() {
             gap: 2,
           }}
         >
-          {SUMMARY_CARDS.map((card) => (
-            <SummaryCard key={card.label} label={card.label} />
-          ))}
+          <SummaryCard
+            label="Monthly Income"
+            amount={baselineReady ? baseline.monthly_income_cents : null}
+            amountColor="success.main"
+            prefix="+"
+            note="Estimated from recent activity"
+          />
+          <SummaryCard
+            label="Monthly Spending"
+            amount={baselineReady ? baseline.monthly_spending_cents : null}
+            amountColor="error.main"
+            prefix="-"
+            note="Estimated from recent activity"
+          />
+          <SummaryCard label="Upcoming Bills" />
         </Box>
+
+        {showBaselineCard && (
+          <BaselineCard
+            status={baseline.status as "ready" | "insufficient_data"}
+            availableCents={
+              baseline.status === "ready" ? baseline.available_cents : 0
+            }
+            windowDays={
+              baseline.status === "ready" ? baseline.window_days : 0
+            }
+          />
+        )}
 
         {renderMainCard()}
 
