@@ -51,11 +51,13 @@ export async function GET() {
     return NextResponse.json(formatBaseline(baseline));
   }
 
-  // Baseline exists — check staleness
+  // Baseline exists — check staleness.
+  // - No isActive filter: catches transactions deactivated by re-normalization
+  // - pending: false: avoids false recomputes when only pending rows changed
   const newerTxnCount = await prisma.normalizedTransaction.count({
     where: {
       userId: user.id,
-      isActive: true,
+      pending: false,
       OR: [
         { createdAt: { gt: existing.computedAt } },
         { updatedAt: { gt: existing.computedAt } },
@@ -69,7 +71,13 @@ export async function GET() {
     return NextResponse.json(formatBaseline(baseline));
   }
 
-  // Fresh — return cached
+  // Fresh — return cached.
+  // If the baseline was persisted with 0 transactions (e.g. sync ran but produced
+  // no normalized rows), treat it as unavailable — not insufficient_data.
+  if (existing.status === "INSUFFICIENT_DATA" && existing.transactionCount === 0) {
+    return NextResponse.json({ status: "unavailable" });
+  }
+
   return NextResponse.json(formatBaseline(existing));
 }
 

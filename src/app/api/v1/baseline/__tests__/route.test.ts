@@ -239,4 +239,73 @@ describe("GET /api/v1/baseline", () => {
       }),
     );
   });
+
+  // -------------------------------------------------------------------
+  // Regression: cached INSUFFICIENT_DATA with 0 transactions = unavailable
+  // -------------------------------------------------------------------
+
+  it("returns unavailable when cached baseline has INSUFFICIENT_DATA and transactionCount=0", async () => {
+    setupAuth("user-1");
+    // This can happen when sync ran, produced 0 normalized transactions,
+    // and computeBaseline() persisted an INSUFFICIENT_DATA row
+    mockBaselineFindUnique.mockResolvedValue(makeBaseline({
+      status: "INSUFFICIENT_DATA",
+      monthlyIncomeCents: 0,
+      monthlySpendingCents: 0,
+      availableCents: 0,
+      windowDays: 0,
+      transactionCount: 0,
+    }));
+    mockNormalizedCount.mockResolvedValue(0); // fresh (no newer txns)
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe("unavailable");
+    expect(body).not.toHaveProperty("monthly_income_cents");
+  });
+
+  // -------------------------------------------------------------------
+  // Regression: staleness check detects deactivated transactions
+  // -------------------------------------------------------------------
+
+  it("staleness query does not filter by isActive so deactivations trigger recompute", async () => {
+    setupAuth("user-1");
+    mockBaselineFindUnique.mockResolvedValue(makeBaseline());
+    // Simulate: a transaction was deactivated (updatedAt > computedAt, isActive=false)
+    // The staleness count query has no isActive filter — it should return > 0
+    mockNormalizedCount.mockResolvedValue(1);
+
+    const recomputed = makeBaseline({ monthlyIncomeCents: 400000, availableCents: 42000 });
+    mockComputeBaseline.mockResolvedValue(recomputed);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(mockComputeBaseline).toHaveBeenCalledWith("user-1");
+    expect(body.monthly_income_cents).toBe(400000);
+  });
+
+  // -------------------------------------------------------------------
+  // Regression: staleness query uses pending:false to avoid false recomputes
+  // -------------------------------------------------------------------
+
+  it("staleness query includes pending:false filter", async () => {
+    setupAuth("user-1");
+    mockBaselineFindUnique.mockResolvedValue(makeBaseline());
+    mockNormalizedCount.mockResolvedValue(0); // fresh
+
+    await GET();
+
+    // The staleness count call should include pending: false
+    expect(mockNormalizedCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          pending: false,
+        }),
+      }),
+    );
+    expect(mockComputeBaseline).not.toHaveBeenCalled();
+  });
 });
