@@ -32,10 +32,11 @@ export async function GET() {
     where: { userId: user.id },
   });
 
+  // Resolve classification — compute if missing or stale, otherwise use cached
+  let classification;
+
   if (!existing) {
     // No classification — check if user has eligible expense transactions
-    // Must match the same filters as computeExpenseClassification:
-    // 90-day window, active, non-pending, EXPENSE type, excluding INCOME/TRANSFER categories
     const now = new Date();
     const windowStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 90),
@@ -56,39 +57,103 @@ export async function GET() {
       return NextResponse.json({ status: "unavailable" });
     }
 
-    // Transactions exist but no classification yet — compute
-    const classification = await computeExpenseClassification(user.id);
-    return NextResponse.json(formatClassification(classification));
+    classification = await computeExpenseClassification(user.id);
+  } else {
+    // Check staleness — no transactionType filter: classification depends on
+    // INCOME rows for reciprocal transfer detection, and rows may be
+    // re-normalized out of EXPENSE. No isActive filter: catches deactivations.
+    const newerTxnCount = await prisma.normalizedTransaction.count({
+      where: {
+        userId: user.id,
+        pending: false,
+        OR: [
+          { createdAt: { gt: existing.computedAt } },
+          { updatedAt: { gt: existing.computedAt } },
+        ],
+      },
+    });
+
+    if (newerTxnCount > 0) {
+      classification = await computeExpenseClassification(user.id);
+    } else {
+      // Fresh cached
+      if (existing.status === "INSUFFICIENT_DATA" && existing.transactionCount === 0) {
+        return NextResponse.json({ status: "unavailable" });
+      }
+      classification = existing;
+    }
   }
 
-  // Classification exists — check staleness
-  // No transactionType filter: classification depends on INCOME rows for
-  // reciprocal transfer detection, and rows may be re-normalized out of EXPENSE.
-  // No isActive filter: catches transactions deactivated by re-normalization.
-  const newerTxnCount = await prisma.normalizedTransaction.count({
+  const formatted = formatClassification(classification);
+
+  // For ready classifications, add current month breakdown
+  if (formatted.status === "ready") {
+    const currentMonth = await queryCurrentMonth(user.id);
+    return NextResponse.json({ ...formatted, current_month: currentMonth });
+  }
+
+  return NextResponse.json(formatted);
+}
+
+// ---------------------------------------------------------------------------
+// Current month aggregation
+// ---------------------------------------------------------------------------
+
+async function queryCurrentMonth(userId: string) {
+  const now = new Date();
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+  const daysInMonth = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const daysElapsed = now.getUTCDate();
+
+  const transactions = await prisma.normalizedTransaction.findMany({
     where: {
-      userId: user.id,
+      userId,
+      isActive: true,
       pending: false,
-      OR: [
-        { createdAt: { gt: existing.computedAt } },
-        { updatedAt: { gt: existing.computedAt } },
-      ],
+      transactionType: "EXPENSE",
+      expenseType: { not: null },
+      date: { gte: monthStart },
+    },
+    select: {
+      amountCents: true,
+      expenseType: true,
     },
   });
 
-  if (newerTxnCount > 0) {
-    // Stale — recompute
-    const classification = await computeExpenseClassification(user.id);
-    return NextResponse.json(formatClassification(classification));
+  let fixedCents = 0;
+  let flexibleCents = 0;
+
+  for (const t of transactions) {
+    if (t.expenseType === "FIXED") {
+      fixedCents += t.amountCents;
+    } else {
+      flexibleCents += t.amountCents;
+    }
   }
 
-  // Fresh — return cached
-  if (existing.status === "INSUFFICIENT_DATA" && existing.transactionCount === 0) {
-    return NextResponse.json({ status: "unavailable" });
-  }
+  const totalCents = fixedCents + flexibleCents;
+  const fixedPct =
+    totalCents > 0 ? Math.round((fixedCents / totalCents) * 100) : 0;
+  const flexiblePct = totalCents > 0 ? 100 - fixedPct : 0;
 
-  return NextResponse.json(formatClassification(existing));
+  return {
+    fixed_cents: fixedCents,
+    flexible_cents: flexibleCents,
+    fixed_pct: fixedPct,
+    flexible_pct: flexiblePct,
+    transaction_count: transactions.length,
+    days_elapsed: daysElapsed,
+    days_in_month: daysInMonth,
+  };
 }
+
+// ---------------------------------------------------------------------------
+// Response formatting
+// ---------------------------------------------------------------------------
 
 function formatClassification(classification: {
   status: string;
