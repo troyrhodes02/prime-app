@@ -308,6 +308,15 @@ export default function DashboardPage() {
               fixedPct={classification.fixed_pct}
               flexiblePct={classification.flexible_pct}
               monthlyIncomeCents={baseline.monthly_income_cents}
+              currentMonth={{
+                fixedCents: classification.current_month.fixed_cents,
+                flexibleCents: classification.current_month.flexible_cents,
+                fixedPct: classification.current_month.fixed_pct,
+                flexiblePct: classification.current_month.flexible_pct,
+                transactionCount: classification.current_month.transaction_count,
+                daysElapsed: classification.current_month.days_elapsed,
+                daysInMonth: classification.current_month.days_in_month,
+              }}
             />
           ) : (
             <ExpenseBreakdownCard status="empty" />

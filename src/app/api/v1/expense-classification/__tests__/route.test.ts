@@ -14,6 +14,7 @@ vi.mock("@/lib/supabase/server", () => ({
 const mockUserFindUnique = vi.fn();
 const mockClassificationFindUnique = vi.fn();
 const mockNormalizedCount = vi.fn();
+const mockNormalizedFindMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -25,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     normalizedTransaction: {
       count: (...args: unknown[]) => mockNormalizedCount(...args),
+      findMany: (...args: unknown[]) => mockNormalizedFindMany(...args),
     },
   },
 }));
@@ -81,6 +83,8 @@ function setupAuth(userId: string | null) {
 describe("GET /api/v1/expense-classification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: current month query returns empty (no current month transactions)
+    mockNormalizedFindMany.mockResolvedValue([]);
   });
 
   // -------------------------------------------------------------------
@@ -106,11 +110,15 @@ describe("GET /api/v1/expense-classification", () => {
   // Status: ready
   // -------------------------------------------------------------------
 
-  it("returns 200 with status ready and snake_case fields", async () => {
+  it("returns 200 with status ready, snake_case fields, and current_month", async () => {
     setupAuth("user-1");
     const classification = makeClassification();
     mockClassificationFindUnique.mockResolvedValue(classification);
     mockNormalizedCount.mockResolvedValue(0); // no newer txns = fresh
+    mockNormalizedFindMany.mockResolvedValue([
+      { amountCents: 80000, expenseType: "FIXED" },
+      { amountCents: 45000, expenseType: "FLEXIBLE" },
+    ]);
 
     const response = await GET();
     const body = await response.json();
@@ -132,13 +140,42 @@ describe("GET /api/v1/expense-classification", () => {
     expect(body.window_days).toBe(87);
     expect(body.transaction_count).toBe(245);
     expect(body.computed_at).toBe("2026-03-25T14:30:00.000Z");
+
+    // Current month breakdown
+    expect(body.current_month).toBeDefined();
+    expect(body.current_month.fixed_cents).toBe(80000);
+    expect(body.current_month.flexible_cents).toBe(45000);
+    expect(body.current_month.fixed_pct).toBe(64);
+    expect(body.current_month.flexible_pct).toBe(36);
+    expect(body.current_month.transaction_count).toBe(2);
+    expect(body.current_month.days_elapsed).toBeGreaterThan(0);
+    expect(body.current_month.days_in_month).toBeGreaterThanOrEqual(28);
   });
 
   // -------------------------------------------------------------------
-  // Status: insufficient_data
+  // Current month: empty when no transactions this month
   // -------------------------------------------------------------------
 
-  it("returns 200 with status insufficient_data when window too short", async () => {
+  it("returns current_month with zeros when no transactions this month", async () => {
+    setupAuth("user-1");
+    mockClassificationFindUnique.mockResolvedValue(makeClassification());
+    mockNormalizedCount.mockResolvedValue(0);
+    mockNormalizedFindMany.mockResolvedValue([]); // no current month txns
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.status).toBe("ready");
+    expect(body.current_month.fixed_cents).toBe(0);
+    expect(body.current_month.flexible_cents).toBe(0);
+    expect(body.current_month.transaction_count).toBe(0);
+  });
+
+  // -------------------------------------------------------------------
+  // Status: insufficient_data — no current_month
+  // -------------------------------------------------------------------
+
+  it("returns insufficient_data without current_month", async () => {
     setupAuth("user-1");
     const classification = makeClassification({
       status: "INSUFFICIENT_DATA",
@@ -159,9 +196,7 @@ describe("GET /api/v1/expense-classification", () => {
 
     expect(response.status).toBe(200);
     expect(body.status).toBe("insufficient_data");
-    expect(body.fixed_cents).toBe(0);
-    expect(body.flexible_cents).toBe(0);
-    expect(body.window_days).toBe(18);
+    expect(body).not.toHaveProperty("current_month");
   });
 
   // -------------------------------------------------------------------
@@ -179,6 +214,7 @@ describe("GET /api/v1/expense-classification", () => {
     expect(response.status).toBe(200);
     expect(body.status).toBe("unavailable");
     expect(body).not.toHaveProperty("fixed_cents");
+    expect(body).not.toHaveProperty("current_month");
   });
 
   // -------------------------------------------------------------------
@@ -207,6 +243,7 @@ describe("GET /api/v1/expense-classification", () => {
     expect(body.flexible_cents).toBe(160000);
     expect(body.fixed_pct).toBe(56);
     expect(body.flexible_pct).toBe(44);
+    expect(body.current_month).toBeDefined();
   });
 
   // -------------------------------------------------------------------
@@ -241,6 +278,7 @@ describe("GET /api/v1/expense-classification", () => {
     expect(mockComputeClassification).toHaveBeenCalledWith("user-1");
     expect(body.status).toBe("ready");
     expect(body.fixed_cents).toBe(185000);
+    expect(body.current_month).toBeDefined();
   });
 
   // -------------------------------------------------------------------
@@ -304,8 +342,6 @@ describe("GET /api/v1/expense-classification", () => {
 
     await GET();
 
-    // The staleness count call should include pending: false but NOT transactionType,
-    // because classification depends on INCOME rows for reciprocal transfer detection
     const stalenessCall = mockNormalizedCount.mock.calls[0][0];
     expect(stalenessCall.where).toHaveProperty("pending", false);
     expect(stalenessCall.where).not.toHaveProperty("transactionType");
@@ -329,5 +365,35 @@ describe("GET /api/v1/expense-classification", () => {
     expect(preflightCall.where).toHaveProperty("pending", false);
     expect(preflightCall.where.date).toHaveProperty("gte");
     expect(preflightCall.where.category).toEqual({ notIn: ["INCOME", "TRANSFER"] });
+  });
+
+  // -------------------------------------------------------------------
+  // Current month query scoped to user and current month
+  // -------------------------------------------------------------------
+
+  it("current month query filters by userId, current month, and classified transactions", async () => {
+    setupAuth("user-1");
+    mockClassificationFindUnique.mockResolvedValue(makeClassification());
+    mockNormalizedCount.mockResolvedValue(0);
+    mockNormalizedFindMany.mockResolvedValue([]);
+
+    await GET();
+
+    expect(mockNormalizedFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: "user-1",
+          isActive: true,
+          pending: false,
+          transactionType: "EXPENSE",
+          expenseType: { not: null },
+        }),
+      }),
+    );
+
+    // Verify date filter is first of current month
+    const findManyCall = mockNormalizedFindMany.mock.calls[0][0];
+    const dateGte = findManyCall.where.date.gte;
+    expect(dateGte.getUTCDate()).toBe(1);
   });
 });

@@ -16,42 +16,84 @@ function formatCurrency(cents: number): string {
   });
 }
 
-function getInsight(
-  flexPct: number,
-  fixedCents: number,
+function getMonthLabel(): string {
+  const now = new Date();
+  return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function getComparisonInsight(
+  currentMonth: {
+    flexibleCents: number;
+    fixedCents: number;
+    daysElapsed: number;
+    daysInMonth: number;
+    transactionCount: number;
+  },
+  avgFlexibleCents: number,
+  avgFixedCents: number,
   monthlyIncomeCents: number,
 ): { text: string; color: string } {
-  // Warning: fixed > 85% of income
-  if (monthlyIncomeCents > 0) {
+  // Warning: fixed > 85% of income (check against current month projected)
+  if (monthlyIncomeCents > 0 && currentMonth.daysElapsed >= 7) {
+    const projectedFixed =
+      (currentMonth.fixedCents / currentMonth.daysElapsed) *
+      currentMonth.daysInMonth;
     const fixedOfIncomePct = Math.round(
-      (fixedCents / monthlyIncomeCents) * 100,
+      (projectedFixed / monthlyIncomeCents) * 100,
     );
     if (fixedOfIncomePct > 85) {
       return {
-        text: `Your fixed expenses use ${fixedOfIncomePct}% of your income. Consider reviewing obligations.`,
+        text: `Your fixed expenses are on pace to use ${fixedOfIncomePct}% of your income this month. Consider reviewing obligations.`,
         color: "warning.main",
       };
     }
   }
 
-  if (flexPct >= 30) {
+  // Too early in month or no transactions for pace comparison
+  if (currentMonth.daysElapsed < 7 || currentMonth.transactionCount === 0) {
     return {
-      text: `You control ${flexPct}% of your monthly spending.`,
+      text: `Spending so far in ${getMonthLabel()}.`,
       color: "grey.500",
     };
   }
 
-  if (flexPct >= 15) {
-    return {
-      text: `Most of your spending is fixed. You control ${flexPct}%.`,
-      color: "grey.500",
-    };
+  // Project current month flexible to full month and compare to 90-day average
+  if (avgFlexibleCents > 0) {
+    const projectedFlexible =
+      (currentMonth.flexibleCents / currentMonth.daysElapsed) *
+      currentMonth.daysInMonth;
+    const pctDiff = Math.round(
+      ((projectedFlexible - avgFlexibleCents) / avgFlexibleCents) * 100,
+    );
+
+    if (pctDiff >= 10) {
+      return {
+        text: `Flexible spending is trending ${pctDiff}% above your monthly average.`,
+        color: "grey.500",
+      };
+    }
+    if (pctDiff <= -10) {
+      return {
+        text: `Flexible spending is trending ${Math.abs(pctDiff)}% below your monthly average.`,
+        color: "grey.500",
+      };
+    }
   }
 
   return {
-    text: "Nearly all your spending is committed to fixed expenses.",
+    text: "Your spending this month is in line with your usual pattern.",
     color: "grey.500",
   };
+}
+
+interface CurrentMonthData {
+  fixedCents: number;
+  flexibleCents: number;
+  fixedPct: number;
+  flexiblePct: number;
+  transactionCount: number;
+  daysElapsed: number;
+  daysInMonth: number;
 }
 
 interface ExpenseBreakdownCardProps {
@@ -61,6 +103,7 @@ interface ExpenseBreakdownCardProps {
   fixedPct?: number;
   flexiblePct?: number;
   monthlyIncomeCents?: number;
+  currentMonth?: CurrentMonthData;
 }
 
 export function ExpenseBreakdownCard({
@@ -70,6 +113,7 @@ export function ExpenseBreakdownCard({
   fixedPct = 0,
   flexiblePct = 0,
   monthlyIncomeCents = 0,
+  currentMonth,
 }: ExpenseBreakdownCardProps) {
   if (status === "empty") {
     return (
@@ -143,16 +187,44 @@ export function ExpenseBreakdownCard({
     );
   }
 
-  const insight = getInsight(flexiblePct, fixedCents, monthlyIncomeCents);
+  // Determine display values: current month if available, otherwise 90-day average
+  const hasCurrentMonth = currentMonth && currentMonth.transactionCount > 0;
+
+  const displayFixedCents = hasCurrentMonth ? currentMonth.fixedCents : fixedCents;
+  const displayFlexibleCents = hasCurrentMonth ? currentMonth.flexibleCents : flexibleCents;
+  const displayFixedPct = hasCurrentMonth ? currentMonth.fixedPct : fixedPct;
+  const displayFlexiblePct = hasCurrentMonth ? currentMonth.flexiblePct : flexiblePct;
+
+  const insight = hasCurrentMonth
+    ? getComparisonInsight(
+        currentMonth,
+        flexibleCents,
+        fixedCents,
+        monthlyIncomeCents,
+      )
+    : {
+        text: `Based on your spending over the last ${Math.round(fixedCents + flexibleCents > 0 ? 90 : 0)} days.`,
+        color: "grey.500",
+      };
 
   return (
     <Card variant="outlined" sx={{ p: 3 }}>
-      <Typography
-        variant="body2"
-        sx={{ fontWeight: 600, color: "grey.900" }}
-      >
-        Spending Breakdown
-      </Typography>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 600, color: "grey.900" }}
+        >
+          Spending Breakdown
+        </Typography>
+        {hasCurrentMonth && (
+          <Typography
+            variant="caption"
+            sx={{ color: "grey.500", fontWeight: 400 }}
+          >
+            {getMonthLabel()}
+          </Typography>
+        )}
+      </Box>
 
       {/* Ratio bar */}
       <Box
@@ -164,8 +236,8 @@ export function ExpenseBreakdownCard({
           overflow: "hidden",
         }}
       >
-        <Box sx={{ width: `${fixedPct}%`, bgcolor: "grey.400" }} />
-        <Box sx={{ width: `${flexiblePct}%`, bgcolor: "primary.main" }} />
+        <Box sx={{ width: `${displayFixedPct}%`, bgcolor: "grey.400" }} />
+        <Box sx={{ width: `${displayFlexiblePct}%`, bgcolor: "primary.main" }} />
       </Box>
 
       {/* Amounts */}
@@ -193,7 +265,7 @@ export function ExpenseBreakdownCard({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatCurrency(fixedCents)}
+            {formatCurrency(displayFixedCents)}
           </Typography>
           <Typography
             variant="body2"
@@ -204,7 +276,7 @@ export function ExpenseBreakdownCard({
               mt: 0.25,
             }}
           >
-            {fixedPct}% of spending
+            {displayFixedPct}% of spending
           </Typography>
         </Box>
         <Box sx={{ textAlign: "right" }}>
@@ -224,7 +296,7 @@ export function ExpenseBreakdownCard({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatCurrency(flexibleCents)}
+            {formatCurrency(displayFlexibleCents)}
           </Typography>
           <Typography
             variant="body2"
@@ -235,7 +307,7 @@ export function ExpenseBreakdownCard({
               mt: 0.25,
             }}
           >
-            {flexiblePct}% of spending
+            {displayFlexiblePct}% of spending
           </Typography>
         </Box>
       </Box>
