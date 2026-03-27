@@ -213,6 +213,15 @@ export function detectRecurrenceForAll(
 const DAYS_PER_MONTH = 30.44;
 const MIN_DAY_SPAN = 30;
 
+const TRANSFER_PATTERNS = [
+  /transfer/i,
+  /xfer/i,
+  /\bmove\b.*\b(funds|money)\b/i,
+  /^online transfer/i,
+  /^ach transfer/i,
+  /^wire transfer/i,
+];
+
 export const CATEGORY_DEFAULT_TYPE: Record<TransactionCategory, ExpenseType> = {
   HOUSING: "FIXED",
   UTILITIES: "FIXED",
@@ -325,6 +334,58 @@ function buildCategoryBreakdown(
 // Core Pipeline
 // ---------------------------------------------------------------------------
 
+function isTransferByName(displayName: string): boolean {
+  return TRANSFER_PATTERNS.some((p) => p.test(displayName));
+}
+
+function formatDateKey(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+interface TransferDetectionRow {
+  id: string;
+  amountCents: number;
+  date: Date;
+  displayName: string;
+  financialAccountId: string;
+}
+
+function detectReciprocalTransfers(
+  expenseTxns: TransferDetectionRow[],
+  allTxns: Array<TransferDetectionRow & { transactionType: string }>,
+): Set<string> {
+  const transferIds = new Set<string>();
+
+  const byDate = new Map<string, Array<TransferDetectionRow & { transactionType: string }>>();
+  for (const t of allTxns) {
+    const key = formatDateKey(t.date);
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push(t);
+  }
+
+  const expenseIds = new Set(expenseTxns.map((t) => t.id));
+
+  for (const [, dayTxns] of byDate) {
+    if (dayTxns.length < 2) continue;
+
+    const incomes = dayTxns.filter((t) => t.transactionType === "INCOME");
+    const expenses = dayTxns.filter((t) => expenseIds.has(t.id));
+
+    for (const inc of incomes) {
+      for (const exp of expenses) {
+        if (
+          Math.abs(inc.amountCents) === exp.amountCents &&
+          inc.financialAccountId !== exp.financialAccountId
+        ) {
+          transferIds.add(exp.id);
+        }
+      }
+    }
+  }
+
+  return transferIds;
+}
+
 function differenceInDaysClassification(a: Date, b: Date): number {
   const msPerDay = 86_400_000;
   const utcA = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
@@ -332,14 +393,19 @@ function differenceInDaysClassification(a: Date, b: Date): number {
   return Math.floor((utcA - utcB) / msPerDay);
 }
 
+// TODO (PRI-35): Wire into sync pipeline (Step 3.6 after baseline)
+// and expose via GET /api/v1/expense-classification endpoint.
+
 /**
  * Full expense classification pipeline.
  *
  * 1. Query expense transactions (90-day window)
- * 2. Validate sufficient data
- * 3. Apply category defaults + recurrence override
- * 4. Persist per-transaction classification
- * 5. Aggregate and persist ExpenseClassification summary
+ * 2. Filter transfers (name-based + reciprocal detection)
+ * 3. Validate sufficient data
+ * 4. Apply category defaults + recurrence override
+ * 5. Clear stale labels on previously-classified ineligible transactions
+ * 6. Persist per-transaction classification
+ * 7. Aggregate and persist ExpenseClassification summary
  */
 export async function computeExpenseClassification(
   userId: string,
@@ -353,7 +419,7 @@ export async function computeExpenseClassification(
   );
 
   // Step 1: Query expense transactions
-  const transactions = await client.normalizedTransaction.findMany({
+  const rawTransactions = await client.normalizedTransaction.findMany({
     where: {
       userId,
       isActive: true,
@@ -370,8 +436,40 @@ export async function computeExpenseClassification(
       category: true,
       merchantName: true,
       displayName: true,
+      financialAccountId: true,
     },
   });
+
+  // Step 1b: Filter transfers by name pattern
+  const afterNameFilter = rawTransactions.filter(
+    (t) => !isTransferByName(t.displayName),
+  );
+
+  // Step 1c: Reciprocal transfer detection — need INCOME transactions for matching
+  const incomeTxns = await client.normalizedTransaction.findMany({
+    where: {
+      userId,
+      isActive: true,
+      pending: false,
+      transactionType: "INCOME",
+      date: { gte: windowStart },
+    },
+    select: {
+      id: true,
+      amountCents: true,
+      date: true,
+      displayName: true,
+      financialAccountId: true,
+      transactionType: true,
+    },
+  });
+
+  const allForReciprocal = [
+    ...afterNameFilter.map((t) => ({ ...t, transactionType: "EXPENSE" as const })),
+    ...incomeTxns,
+  ];
+  const reciprocalIds = detectReciprocalTransfers(afterNameFilter, allForReciprocal);
+  const transactions = afterNameFilter.filter((t) => !reciprocalIds.has(t.id));
 
   const epoch = new Date(0);
 
@@ -440,7 +538,21 @@ export async function computeExpenseClassification(
     };
   });
 
-  // Step 5: Batch-persist per-transaction classification
+  // Step 5a: Clear stale classification on transactions no longer eligible
+  const classifiedIds = classified.map((t) => t.id);
+  await client.normalizedTransaction.updateMany({
+    where: {
+      userId,
+      expenseType: { not: null },
+      id: { notIn: classifiedIds },
+    },
+    data: {
+      expenseType: null,
+      classificationConfidence: null,
+    },
+  });
+
+  // Step 5b: Batch-persist per-transaction classification
   // Group by (expenseType, confidence) to minimize DB round trips
   const updateGroups = new Map<string, string[]>();
   for (const t of classified) {

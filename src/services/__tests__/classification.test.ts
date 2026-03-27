@@ -674,6 +674,7 @@ interface MockExpenseTxn {
   category: string;
   merchantName: string | null;
   displayName: string;
+  financialAccountId: string;
 }
 
 function makeExpenseTxn(overrides: Partial<MockExpenseTxn> & { daysAgo?: number } = {}): MockExpenseTxn {
@@ -685,20 +686,38 @@ function makeExpenseTxn(overrides: Partial<MockExpenseTxn> & { daysAgo?: number 
     category: overrides.category ?? "FOOD_AND_DRINK",
     merchantName: "merchantName" in overrides ? (overrides.merchantName ?? null) : "Test Merchant",
     displayName: overrides.displayName ?? "TEST MERCHANT",
+    financialAccountId: overrides.financialAccountId ?? "acc-1",
   };
 }
 
-function makeMockClassificationClient(transactions: MockExpenseTxn[] = []) {
+interface MockIncomeRow {
+  id: string;
+  amountCents: number;
+  date: Date;
+  displayName: string;
+  financialAccountId: string;
+  transactionType: string;
+}
+
+function makeMockClassificationClient(
+  transactions: MockExpenseTxn[] = [],
+  incomeTxns: MockIncomeRow[] = [],
+) {
   const upsertedRecords: unknown[] = [];
   const updateManyCalls: unknown[] = [];
 
   // Sort by date ascending to match real DB orderBy: { date: "asc" }
   const sorted = [...transactions].sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  // First findMany call returns expense txns, second returns income txns for reciprocal detection
+  const findManyFn = vi.fn()
+    .mockResolvedValueOnce(sorted)
+    .mockResolvedValueOnce(incomeTxns);
+
   return {
     client: {
       normalizedTransaction: {
-        findMany: vi.fn().mockResolvedValue(sorted),
+        findMany: findManyFn,
         updateMany: vi.fn().mockImplementation((args: unknown) => {
           updateManyCalls.push(args);
           return Promise.resolve({ count: 1 });
@@ -1002,5 +1021,93 @@ describe("computeExpenseClassification — determinism", () => {
     expect(r1.flexibleCents).toBe(r2.flexibleCents);
     expect(r1.fixedPct).toBe(r2.fixedPct);
     expect(r1.flexiblePct).toBe(r2.flexiblePct);
+  });
+});
+
+// ===========================================================================
+// computeExpenseClassification — transfer filtering
+// ===========================================================================
+
+describe("computeExpenseClassification — transfer filtering", () => {
+  beforeEach(() => {
+    txnCounter = 0;
+  });
+
+  it("filters out transactions with transfer-like display names", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "UNCATEGORIZED", amountCents: 50000, daysAgo: 60, displayName: "Online Transfer to Savings", merchantName: null }),
+      makeExpenseTxn({ category: "UNCATEGORIZED", amountCents: 30000, daysAgo: 45, displayName: "ACH Transfer", merchantName: null }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 2500, daysAgo: 30, merchantName: "Cafe", displayName: "CAFE PURCHASE" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 3500, daysAgo: 0, merchantName: "Diner", displayName: "DINER PURCHASE" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    // Transfer txns should be filtered out — only the 2 food txns remain
+    // But day span for 2 remaining txns is only 30, which is >= MIN_DAY_SPAN
+    expect(record.status).toBe("READY");
+    expect(record.transactionCount).toBe(2);
+  });
+
+  it("filters out reciprocal transfers (same-day matching debit/credit across accounts)", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent", financialAccountId: "acc-1" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent", financialAccountId: "acc-1" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent", financialAccountId: "acc-1" }),
+      // This expense matches a same-day income on a different account
+      makeExpenseTxn({ id: "reciprocal-exp", category: "UNCATEGORIZED", amountCents: 100000, daysAgo: 45, merchantName: null, displayName: "Move Funds", financialAccountId: "acc-1" }),
+    ];
+
+    const incomeTxns: MockIncomeRow[] = [
+      {
+        id: "reciprocal-inc",
+        amountCents: -100000, // income amounts are negative in Plaid
+        date: makeDate(45),
+        displayName: "Move Funds",
+        financialAccountId: "acc-2",
+        transactionType: "INCOME",
+      },
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns, incomeTxns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    // The "Move Funds" expense should be filtered — first by name pattern, leaving 3 rent txns
+    expect(record.status).toBe("READY");
+    expect(record.transactionCount).toBe(3);
+  });
+});
+
+// ===========================================================================
+// computeExpenseClassification — stale label cleanup
+// ===========================================================================
+
+describe("computeExpenseClassification — stale label cleanup", () => {
+  beforeEach(() => {
+    txnCounter = 0;
+  });
+
+  it("clears stale expenseType on previously-classified transactions not in current set", async () => {
+    const txns = [
+      makeExpenseTxn({ id: "t1", category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ id: "t2", category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ id: "t3", category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+    ];
+
+    const { client, updateManyCalls } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    // First updateMany should be the stale label cleanup (notIn classified IDs)
+    const staleCleanup = (updateManyCalls as any[]).find(
+      (call: any) => call.data?.expenseType === null,
+    );
+    expect(staleCleanup).toBeDefined();
+    expect(staleCleanup.where.userId).toBe("user-1");
+    expect(staleCleanup.where.expenseType).toEqual({ not: null });
+    expect(staleCleanup.where.id.notIn).toEqual(expect.arrayContaining(["t1", "t2", "t3"]));
+    expect(staleCleanup.data.classificationConfidence).toBeNull();
   });
 });
