@@ -294,25 +294,40 @@ describe("GET /api/v1/expense-classification", () => {
   });
 
   // -------------------------------------------------------------------
-  // Staleness query checks expense transactions specifically
+  // Staleness query omits transactionType to catch INCOME changes
   // -------------------------------------------------------------------
 
-  it("staleness query filters by transactionType EXPENSE", async () => {
+  it("staleness query does not filter by transactionType so INCOME changes trigger recompute", async () => {
     setupAuth("user-1");
     mockClassificationFindUnique.mockResolvedValue(makeClassification());
     mockNormalizedCount.mockResolvedValue(0); // fresh
 
     await GET();
 
-    // The staleness count call should include transactionType: "EXPENSE"
-    expect(mockNormalizedCount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          transactionType: "EXPENSE",
-          pending: false,
-        }),
-      }),
-    );
+    // The staleness count call should include pending: false but NOT transactionType,
+    // because classification depends on INCOME rows for reciprocal transfer detection
+    const stalenessCall = mockNormalizedCount.mock.calls[0][0];
+    expect(stalenessCall.where).toHaveProperty("pending", false);
+    expect(stalenessCall.where).not.toHaveProperty("transactionType");
     expect(mockComputeClassification).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------
+  // Preflight count applies 90-day window and category exclusions
+  // -------------------------------------------------------------------
+
+  it("preflight count applies date window and excludes INCOME/TRANSFER categories", async () => {
+    setupAuth("user-1");
+    mockClassificationFindUnique.mockResolvedValue(null); // no classification
+    mockNormalizedCount.mockResolvedValue(0); // no eligible transactions
+
+    await GET();
+
+    const preflightCall = mockNormalizedCount.mock.calls[0][0];
+    expect(preflightCall.where).toHaveProperty("transactionType", "EXPENSE");
+    expect(preflightCall.where).toHaveProperty("isActive", true);
+    expect(preflightCall.where).toHaveProperty("pending", false);
+    expect(preflightCall.where.date).toHaveProperty("gte");
+    expect(preflightCall.where.category).toEqual({ notIn: ["INCOME", "TRANSFER"] });
   });
 });

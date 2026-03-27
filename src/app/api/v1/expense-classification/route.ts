@@ -33,13 +33,22 @@ export async function GET() {
   });
 
   if (!existing) {
-    // No classification — check if user has any expense transactions
+    // No classification — check if user has eligible expense transactions
+    // Must match the same filters as computeExpenseClassification:
+    // 90-day window, active, non-pending, EXPENSE type, excluding INCOME/TRANSFER categories
+    const now = new Date();
+    const windowStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 90),
+    );
+
     const txnCount = await prisma.normalizedTransaction.count({
       where: {
         userId: user.id,
         isActive: true,
         pending: false,
         transactionType: "EXPENSE",
+        date: { gte: windowStart },
+        category: { notIn: ["INCOME", "TRANSFER"] },
       },
     });
 
@@ -53,11 +62,13 @@ export async function GET() {
   }
 
   // Classification exists — check staleness
+  // No transactionType filter: classification depends on INCOME rows for
+  // reciprocal transfer detection, and rows may be re-normalized out of EXPENSE.
+  // No isActive filter: catches transactions deactivated by re-normalization.
   const newerTxnCount = await prisma.normalizedTransaction.count({
     where: {
       userId: user.id,
       pending: false,
-      transactionType: "EXPENSE",
       OR: [
         { createdAt: { gt: existing.computedAt } },
         { updatedAt: { gt: existing.computedAt } },

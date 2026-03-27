@@ -842,9 +842,9 @@ describe("computeExpenseClassification — happy path", () => {
     await computeExpenseClassification("user-1", client as any);
 
     const record = upsertedRecords[0] as any;
-    const fixedCats = record.fixedCategories as Array<{ amountCents: number }>;
+    const fixedCats = record.fixedCategories as Array<{ totalCents: number }>;
     for (let i = 1; i < fixedCats.length; i++) {
-      expect(fixedCats[i - 1].amountCents).toBeGreaterThanOrEqual(fixedCats[i].amountCents);
+      expect(fixedCats[i - 1].totalCents).toBeGreaterThanOrEqual(fixedCats[i].totalCents);
     }
   });
 
@@ -966,8 +966,8 @@ describe("computeExpenseClassification — edge cases", () => {
     expect(record.transactionCount).toBe(7);
 
     // Category breakdowns
-    const fixedCats = record.fixedCategories as Array<{ category: string; amountCents: number }>;
-    const flexCats = record.flexibleCategories as Array<{ category: string; amountCents: number }>;
+    const fixedCats = record.fixedCategories as Array<{ category: string; totalCents: number; pct: number }>;
+    const flexCats = record.flexibleCategories as Array<{ category: string; totalCents: number; pct: number }>;
 
     expect(fixedCats.length).toBe(2); // HOUSING, UTILITIES
     expect(flexCats.length).toBe(2); // FOOD_AND_DRINK, SHOPPING
