@@ -75,8 +75,8 @@ function detectReciprocalTransfers(txns: TransactionRow[]): Set<string> {
 
 function differenceInDays(a: Date, b: Date): number {
   const msPerDay = 86400000;
-  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  const utcA = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const utcB = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
   return Math.floor((utcA - utcB) / msPerDay);
 }
 

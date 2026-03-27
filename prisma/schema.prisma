@@ -20,6 +20,7 @@ model User {
   rawTransactions  RawTransaction[]
   normalizedTransactions NormalizedTransaction[]
   financialBaseline      FinancialBaseline?
+  expenseClassification  ExpenseClassification?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -218,6 +219,22 @@ enum BaselineStatus {
   STALE
 }
 
+enum ExpenseType {
+  FIXED
+  FLEXIBLE
+}
+
+enum ClassificationConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ClassificationStatus {
+  READY
+  INSUFFICIENT_DATA
+}
+
 model NormalizedTransaction {
   id                  String              @id @default(cuid())
   userId              String
@@ -235,6 +252,8 @@ model NormalizedTransaction {
   pending             Boolean             @default(false)
   duplicateOf         String?
   isActive            Boolean             @default(true)
+  expenseType             ExpenseType?
+  classificationConfidence ClassificationConfidence?
 
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   account        FinancialAccount @relation(fields: [financialAccountId], references: [id], onDelete: Cascade)
@@ -264,6 +283,32 @@ model FinancialBaseline {
 
   status     BaselineStatus @default(INSUFFICIENT_DATA)
   computedAt DateTime       @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExpenseClassification {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  fixedCents      Int
+  flexibleCents   Int
+  fixedPct        Int
+  flexiblePct     Int
+
+  fixedCategories    Json
+  flexibleCategories Json
+
+  windowDays            Int
+  transactionCount      Int
+  oldestTransactionDate DateTime
+  newestTransactionDate DateTime
+
+  status     ClassificationStatus @default(INSUFFICIENT_DATA)
+  computedAt DateTime             @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
