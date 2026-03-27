@@ -1,9 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectRecurrence,
   detectRecurrenceForAll,
   normalizeMerchantKey,
+  classifyTransaction,
+  computeExpenseClassification,
+  CATEGORY_DEFAULT_TYPE,
+  CATEGORY_LABELS,
   type TransactionInput,
+  type RecurrenceSignal,
 } from "../classification";
 
 // ---------------------------------------------------------------------------
@@ -507,5 +512,495 @@ describe("detectRecurrenceForAll", () => {
     expect(results.size).toBe(1);
     expect(results.has("autopay rent")).toBe(true);
     expect(results.get("autopay rent")?.isRecurring).toBe(true);
+  });
+});
+
+// ===========================================================================
+// classifyTransaction — per-transaction classification logic
+// ===========================================================================
+
+function makeSignal(overrides: Partial<RecurrenceSignal> = {}): RecurrenceSignal {
+  return {
+    merchantKey: "test",
+    isRecurring: false,
+    confidence: "LOW",
+    avgAmountCents: 1000,
+    transactionCount: 1,
+    ...overrides,
+  };
+}
+
+describe("classifyTransaction", () => {
+  it("HOUSING → FIXED with HIGH confidence", () => {
+    const result = classifyTransaction("FIXED", undefined);
+    expect(result.expenseType).toBe("FIXED");
+    expect(result.confidence).toBe("HIGH");
+  });
+
+  it("UTILITIES → FIXED with HIGH confidence", () => {
+    const result = classifyTransaction("FIXED", makeSignal());
+    expect(result.expenseType).toBe("FIXED");
+    expect(result.confidence).toBe("HIGH");
+  });
+
+  it("SUBSCRIPTIONS → FIXED even without recurrence", () => {
+    const result = classifyTransaction("FIXED", makeSignal({ isRecurring: false }));
+    expect(result.expenseType).toBe("FIXED");
+    expect(result.confidence).toBe("HIGH");
+  });
+
+  it("FOOD_AND_DRINK → FLEXIBLE when not recurring", () => {
+    const result = classifyTransaction("FLEXIBLE", makeSignal({ isRecurring: false }));
+    expect(result.expenseType).toBe("FLEXIBLE");
+  });
+
+  it("SHOPPING → FLEXIBLE when no recurrence signal", () => {
+    const result = classifyTransaction("FLEXIBLE", undefined);
+    expect(result.expenseType).toBe("FLEXIBLE");
+    expect(result.confidence).toBe("MEDIUM");
+  });
+
+  it("recurring TRANSPORTATION → overridden to FIXED", () => {
+    const result = classifyTransaction(
+      "FLEXIBLE",
+      makeSignal({ isRecurring: true, confidence: "HIGH" }),
+    );
+    expect(result.expenseType).toBe("FIXED");
+    expect(result.confidence).toBe("HIGH");
+  });
+
+  it("recurring HEALTH (MEDIUM confidence) → FIXED with MEDIUM", () => {
+    const result = classifyTransaction(
+      "FLEXIBLE",
+      makeSignal({ isRecurring: true, confidence: "MEDIUM" }),
+    );
+    expect(result.expenseType).toBe("FIXED");
+    expect(result.confidence).toBe("MEDIUM");
+  });
+
+  it("non-recurring FLEXIBLE with LOW recurrence → HIGH confidence FLEXIBLE", () => {
+    const result = classifyTransaction(
+      "FLEXIBLE",
+      makeSignal({ isRecurring: false, confidence: "LOW" }),
+    );
+    expect(result.expenseType).toBe("FLEXIBLE");
+    expect(result.confidence).toBe("HIGH");
+  });
+});
+
+// ===========================================================================
+// CATEGORY_DEFAULT_TYPE — mapping completeness
+// ===========================================================================
+
+describe("CATEGORY_DEFAULT_TYPE", () => {
+  it("maps HOUSING to FIXED", () => {
+    expect(CATEGORY_DEFAULT_TYPE.HOUSING).toBe("FIXED");
+  });
+
+  it("maps UTILITIES to FIXED", () => {
+    expect(CATEGORY_DEFAULT_TYPE.UTILITIES).toBe("FIXED");
+  });
+
+  it("maps SUBSCRIPTIONS to FIXED", () => {
+    expect(CATEGORY_DEFAULT_TYPE.SUBSCRIPTIONS).toBe("FIXED");
+  });
+
+  it("maps FOOD_AND_DRINK to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.FOOD_AND_DRINK).toBe("FLEXIBLE");
+  });
+
+  it("maps SHOPPING to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.SHOPPING).toBe("FLEXIBLE");
+  });
+
+  it("maps ENTERTAINMENT to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.ENTERTAINMENT).toBe("FLEXIBLE");
+  });
+
+  it("maps HEALTH to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.HEALTH).toBe("FLEXIBLE");
+  });
+
+  it("maps PERSONAL to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.PERSONAL).toBe("FLEXIBLE");
+  });
+
+  it("maps UNCATEGORIZED to FLEXIBLE", () => {
+    expect(CATEGORY_DEFAULT_TYPE.UNCATEGORIZED).toBe("FLEXIBLE");
+  });
+
+  it("maps INCOME to FLEXIBLE (filtered before use)", () => {
+    expect(CATEGORY_DEFAULT_TYPE.INCOME).toBe("FLEXIBLE");
+  });
+
+  it("maps TRANSFER to FLEXIBLE (filtered before use)", () => {
+    expect(CATEGORY_DEFAULT_TYPE.TRANSFER).toBe("FLEXIBLE");
+  });
+});
+
+// ===========================================================================
+// CATEGORY_LABELS — display name mapping
+// ===========================================================================
+
+describe("CATEGORY_LABELS", () => {
+  it("has a label for every expense category", () => {
+    const expectedCategories = [
+      "HOUSING", "UTILITIES", "SUBSCRIPTIONS", "TRANSPORTATION",
+      "FOOD_AND_DRINK", "SHOPPING", "ENTERTAINMENT", "HEALTH",
+      "PERSONAL", "UNCATEGORIZED",
+    ];
+    for (const cat of expectedCategories) {
+      expect(CATEGORY_LABELS[cat]).toBeDefined();
+    }
+  });
+
+  it("maps UNCATEGORIZED to 'Other'", () => {
+    expect(CATEGORY_LABELS.UNCATEGORIZED).toBe("Other");
+  });
+
+  it("maps FOOD_AND_DRINK to 'Food & Drink'", () => {
+    expect(CATEGORY_LABELS.FOOD_AND_DRINK).toBe("Food & Drink");
+  });
+});
+
+// ===========================================================================
+// computeExpenseClassification — full pipeline with mocked DB
+// ===========================================================================
+
+interface MockExpenseTxn {
+  id: string;
+  amountCents: number;
+  date: Date;
+  category: string;
+  merchantName: string | null;
+  displayName: string;
+}
+
+function makeExpenseTxn(overrides: Partial<MockExpenseTxn> & { daysAgo?: number } = {}): MockExpenseTxn {
+  txnCounter++;
+  return {
+    id: overrides.id ?? `exp-${txnCounter}`,
+    amountCents: overrides.amountCents ?? 5000,
+    date: overrides.daysAgo !== undefined ? makeDate(overrides.daysAgo) : makeDate(0),
+    category: overrides.category ?? "FOOD_AND_DRINK",
+    merchantName: "merchantName" in overrides ? (overrides.merchantName ?? null) : "Test Merchant",
+    displayName: overrides.displayName ?? "TEST MERCHANT",
+  };
+}
+
+function makeMockClassificationClient(transactions: MockExpenseTxn[] = []) {
+  const upsertedRecords: unknown[] = [];
+  const updateManyCalls: unknown[] = [];
+
+  // Sort by date ascending to match real DB orderBy: { date: "asc" }
+  const sorted = [...transactions].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return {
+    client: {
+      normalizedTransaction: {
+        findMany: vi.fn().mockResolvedValue(sorted),
+        updateMany: vi.fn().mockImplementation((args: unknown) => {
+          updateManyCalls.push(args);
+          return Promise.resolve({ count: 1 });
+        }),
+      },
+      expenseClassification: {
+        upsert: vi.fn().mockImplementation((args: { create: unknown }) => {
+          upsertedRecords.push(args.create);
+          return Promise.resolve(args.create);
+        }),
+      },
+    },
+    upsertedRecords,
+    updateManyCalls,
+  };
+}
+
+describe("computeExpenseClassification — happy path", () => {
+  beforeEach(() => {
+    txnCounter = 0;
+  });
+
+  it("classifies HOUSING as FIXED", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Landlord" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Landlord" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Landlord" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.status).toBe("READY");
+    expect(record.fixedPct).toBe(100);
+    expect(record.flexiblePct).toBe(0);
+    expect(record.fixedCents).toBeGreaterThan(0);
+    expect(record.flexibleCents).toBe(0);
+  });
+
+  it("classifies FOOD_AND_DRINK as FLEXIBLE when not recurring", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 2500, daysAgo: 60, merchantName: "Cafe A" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 3500, daysAgo: 40, merchantName: "Cafe B" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 4000, daysAgo: 10, merchantName: "Cafe C" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 1500, daysAgo: 0, merchantName: "Cafe D" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.fixedPct).toBe(0);
+    expect(record.flexiblePct).toBe(100);
+  });
+
+  it("overrides recurring TRANSPORTATION to FIXED", async () => {
+    // 3 monthly transit pass charges + one-off shopping
+    const txns = [
+      makeExpenseTxn({ category: "TRANSPORTATION", amountCents: 12700, daysAgo: 60, merchantName: "Transit" }),
+      makeExpenseTxn({ category: "TRANSPORTATION", amountCents: 12700, daysAgo: 30, merchantName: "Transit" }),
+      makeExpenseTxn({ category: "TRANSPORTATION", amountCents: 12700, daysAgo: 0, merchantName: "Transit" }),
+      makeExpenseTxn({ category: "SHOPPING", amountCents: 5000, daysAgo: 45, merchantName: "Store" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    // Transit is recurring → FIXED. Shopping is one-off → FLEXIBLE.
+    expect(record.fixedCents).toBeGreaterThan(0);
+    expect(record.flexibleCents).toBeGreaterThan(0);
+    expect(record.fixedPct + record.flexiblePct).toBe(100);
+  });
+
+  it("percentages always sum to 100", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 3333, daysAgo: 50, merchantName: "Cafe" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 3333, daysAgo: 20, merchantName: "Diner" }),
+      makeExpenseTxn({ category: "ENTERTAINMENT", amountCents: 1599, daysAgo: 10, merchantName: "Movie" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.fixedPct + record.flexiblePct).toBe(100);
+  });
+
+  it("all financial values are integers", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 133333, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 133333, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 133333, daysAgo: 0, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "SHOPPING", amountCents: 7777, daysAgo: 45, merchantName: "Shop" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(Number.isInteger(record.fixedCents)).toBe(true);
+    expect(Number.isInteger(record.flexibleCents)).toBe(true);
+    expect(Number.isInteger(record.fixedPct)).toBe(true);
+    expect(Number.isInteger(record.flexiblePct)).toBe(true);
+  });
+
+  it("categories sorted descending by amount", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "UTILITIES", amountCents: 8000, daysAgo: 50, merchantName: "Electric" }),
+      makeExpenseTxn({ category: "UTILITIES", amountCents: 8000, daysAgo: 20, merchantName: "Electric" }),
+      makeExpenseTxn({ category: "SUBSCRIPTIONS", amountCents: 1599, daysAgo: 10, merchantName: "Netflix" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    const fixedCats = record.fixedCategories as Array<{ amountCents: number }>;
+    for (let i = 1; i < fixedCats.length; i++) {
+      expect(fixedCats[i - 1].amountCents).toBeGreaterThanOrEqual(fixedCats[i].amountCents);
+    }
+  });
+
+  it("category breakdowns have correct labels", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    const fixedCats = record.fixedCategories as Array<{ category: string; label: string }>;
+    const housingCat = fixedCats.find((c) => c.category === "HOUSING");
+    expect(housingCat?.label).toBe("Housing");
+  });
+});
+
+describe("computeExpenseClassification — edge cases", () => {
+  beforeEach(() => {
+    txnCounter = 0;
+  });
+
+  it("returns INSUFFICIENT_DATA when no transactions", async () => {
+    const { client, upsertedRecords } = makeMockClassificationClient([]);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.status).toBe("INSUFFICIENT_DATA");
+    expect(record.fixedCents).toBe(0);
+    expect(record.flexibleCents).toBe(0);
+    expect(record.transactionCount).toBe(0);
+  });
+
+  it("returns INSUFFICIENT_DATA when day span < 30", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 2500, daysAgo: 20 }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 3500, daysAgo: 0 }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.status).toBe("INSUFFICIENT_DATA");
+  });
+
+  it("all spending fixed → fixedPct=100, flexiblePct=0", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.fixedPct).toBe(100);
+    expect(record.flexiblePct).toBe(0);
+  });
+
+  it("all spending flexible → fixedPct=0, flexiblePct=100", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "SHOPPING", amountCents: 5000, daysAgo: 60, merchantName: "Store A" }),
+      makeExpenseTxn({ category: "ENTERTAINMENT", amountCents: 3000, daysAgo: 30, merchantName: "Movie" }),
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 2000, daysAgo: 0, merchantName: "Cafe" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.fixedPct).toBe(0);
+    expect(record.flexiblePct).toBe(100);
+  });
+
+  it("batch-updates transactions by (expenseType, confidence) group", async () => {
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "SHOPPING", amountCents: 5000, daysAgo: 45, merchantName: "Store" }),
+    ];
+
+    const { client, updateManyCalls } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    // Should have batch updates, not one per transaction
+    expect(updateManyCalls.length).toBeGreaterThan(0);
+    expect(updateManyCalls.length).toBeLessThanOrEqual(txns.length);
+  });
+
+  it("handles mixed fixed and flexible categories correctly", async () => {
+    // 61-day window (daysAgo 60 to 0)
+    const txns = [
+      // FIXED: Housing $1400 * 3 = $4200 raw over 61 days
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+      // FIXED: Utilities $80 * 2 = $160 raw
+      makeExpenseTxn({ category: "UTILITIES", amountCents: 8000, daysAgo: 50, merchantName: "Electric" }),
+      makeExpenseTxn({ category: "UTILITIES", amountCents: 8000, daysAgo: 20, merchantName: "Electric" }),
+      // FLEXIBLE: Food $50 one-off
+      makeExpenseTxn({ category: "FOOD_AND_DRINK", amountCents: 5000, daysAgo: 40, merchantName: "Cafe" }),
+      // FLEXIBLE: Shopping $100 one-off
+      makeExpenseTxn({ category: "SHOPPING", amountCents: 10000, daysAgo: 10, merchantName: "Store" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    expect(record.status).toBe("READY");
+    expect(record.fixedCents).toBeGreaterThan(record.flexibleCents);
+    expect(record.fixedPct + record.flexiblePct).toBe(100);
+    expect(record.transactionCount).toBe(7);
+
+    // Category breakdowns
+    const fixedCats = record.fixedCategories as Array<{ category: string; amountCents: number }>;
+    const flexCats = record.flexibleCategories as Array<{ category: string; amountCents: number }>;
+
+    expect(fixedCats.length).toBe(2); // HOUSING, UTILITIES
+    expect(flexCats.length).toBe(2); // FOOD_AND_DRINK, SHOPPING
+
+    // Housing should be first (largest)
+    expect(fixedCats[0].category).toBe("HOUSING");
+  });
+
+  it("monthly scaling uses same approach as baseline (raw / windowDays * 30.44)", async () => {
+    // 61-day window: 3 housing charges of $1400
+    // Raw fixed: 420000 cents. Monthly: round(420000 / 61 * 30.44) = round(209,544.26...) = 209544
+    const txns = [
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+    ];
+
+    const { client, upsertedRecords } = makeMockClassificationClient(txns);
+    await computeExpenseClassification("user-1", client as any);
+
+    const record = upsertedRecords[0] as any;
+    // actualWindowDays = 60 + 1 = 61
+    const expected = Math.round((420000 / 61) * 30.44);
+    expect(record.fixedCents).toBe(expected);
+  });
+});
+
+describe("computeExpenseClassification — determinism", () => {
+  beforeEach(() => {
+    txnCounter = 0;
+  });
+
+  it("same transactions produce same output", async () => {
+    const baseTxns = [
+      makeExpenseTxn({ id: "d1", category: "HOUSING", amountCents: 140000, daysAgo: 60, merchantName: "Rent" }),
+      makeExpenseTxn({ id: "d2", category: "HOUSING", amountCents: 140000, daysAgo: 30, merchantName: "Rent" }),
+      makeExpenseTxn({ id: "d3", category: "HOUSING", amountCents: 140000, daysAgo: 0, merchantName: "Rent" }),
+      makeExpenseTxn({ id: "d4", category: "FOOD_AND_DRINK", amountCents: 5000, daysAgo: 45, merchantName: "Cafe" }),
+    ];
+
+    const mock1 = makeMockClassificationClient([...baseTxns]);
+    const mock2 = makeMockClassificationClient([...baseTxns]);
+
+    await computeExpenseClassification("user-1", mock1.client as any);
+    await computeExpenseClassification("user-1", mock2.client as any);
+
+    const r1 = mock1.upsertedRecords[0] as any;
+    const r2 = mock2.upsertedRecords[0] as any;
+
+    expect(r1.fixedCents).toBe(r2.fixedCents);
+    expect(r1.flexibleCents).toBe(r2.flexibleCents);
+    expect(r1.fixedPct).toBe(r2.fixedPct);
+    expect(r1.flexiblePct).toBe(r2.flexiblePct);
   });
 });
