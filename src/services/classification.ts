@@ -266,7 +266,8 @@ interface ClassifiedTransaction {
 interface CategoryBreakdownEntry {
   category: string;
   label: string;
-  amountCents: number;
+  totalCents: number;
+  pct: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,13 +322,20 @@ function buildCategoryBreakdown(
     byCategory.set(t.category, current + t.amountCents);
   }
 
-  return Array.from(byCategory.entries())
-    .map(([category, totalCents]) => ({
-      category,
-      label: CATEGORY_LABELS[category] ?? category,
-      amountCents: Math.round((totalCents / windowDays) * DAYS_PER_MONTH),
+  const entries = Array.from(byCategory.entries()).map(([category, rawCents]) => ({
+    category,
+    label: CATEGORY_LABELS[category] ?? category,
+    totalCents: Math.round((rawCents / windowDays) * DAYS_PER_MONTH),
+  }));
+
+  const grandTotal = entries.reduce((s, e) => s + e.totalCents, 0);
+
+  return entries
+    .map((e) => ({
+      ...e,
+      pct: grandTotal > 0 ? Math.round((e.totalCents / grandTotal) * 100) : 0,
     }))
-    .sort((a, b) => b.amountCents - a.amountCents);
+    .sort((a, b) => b.totalCents - a.totalCents);
 }
 
 // ---------------------------------------------------------------------------
@@ -393,8 +401,7 @@ function differenceInDaysClassification(a: Date, b: Date): number {
   return Math.floor((utcA - utcB) / msPerDay);
 }
 
-// TODO (PRI-35): Wire into sync pipeline (Step 3.6 after baseline)
-// and expose via GET /api/v1/expense-classification endpoint.
+
 
 /**
  * Full expense classification pipeline.
