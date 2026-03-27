@@ -177,8 +177,9 @@ describe("detectRecurrence — MEDIUM confidence", () => {
     expect(result.confidence).toBe("MEDIUM");
   });
 
-  it("consistent amounts (CV ≤ 0.15) but irregular cadence", () => {
+  it("consistent amounts (CV ≤ 0.15) but irregular cadence → not recurring", () => {
     // Very consistent amounts but intervals outside 25-35 range
+    // Amount stability alone does not indicate monthly recurrence
     const txns = [
       makeTxn({ merchantName: "Subscription", amountCents: 2999, daysAgo: 80 }),
       makeTxn({ merchantName: "Subscription", amountCents: 3000, daysAgo: 40 }), // 40-day interval
@@ -187,9 +188,9 @@ describe("detectRecurrence — MEDIUM confidence", () => {
 
     const result = detectRecurrence(txns);
 
-    // CV is very low (< 0.01) so should be MEDIUM even without monthly cadence
-    expect(result.isRecurring).toBe(true);
-    expect(result.confidence).toBe("MEDIUM");
+    // No monthly cadence → not recurring, regardless of amount consistency
+    expect(result.isRecurring).toBe(false);
+    expect(result.confidence).toBe("LOW");
   });
 
   it("mixed intervals where 60% are monthly", () => {
@@ -221,6 +222,21 @@ describe("detectRecurrence — LOW confidence (not recurring)", () => {
       makeTxn({ merchantName: "Restaurant", amountCents: 4200, daysAgo: 65 }), // 15 days
       makeTxn({ merchantName: "Restaurant", amountCents: 1800, daysAgo: 20 }), // 45 days
       makeTxn({ merchantName: "Restaurant", amountCents: 5500, daysAgo: 5 }),  // 15 days
+    ];
+
+    const result = detectRecurrence(txns);
+
+    expect(result.isRecurring).toBe(false);
+    expect(result.confidence).toBe("LOW");
+  });
+
+  it("identical amounts at irregular intervals → not recurring", () => {
+    // Reviewer scenario: three $50 charges at non-monthly intervals
+    // CV = 0 but no monthly cadence → must NOT be flagged as recurring
+    const txns = [
+      makeTxn({ merchantName: "Store", amountCents: 5000, daysAgo: 80 }),
+      makeTxn({ merchantName: "Store", amountCents: 5000, daysAgo: 65 }), // 15 days
+      makeTxn({ merchantName: "Store", amountCents: 5000, daysAgo: 0 }),  // 65 days
     ];
 
     const result = detectRecurrence(txns);

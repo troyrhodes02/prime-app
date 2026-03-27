@@ -41,9 +41,8 @@ const MONTHLY_MAX_DAYS = 35;
 /** Minimum ratio of intervals that must be monthly */
 const MONTHLY_RATIO_THRESHOLD = 0.6;
 
-/** Coefficient of variation thresholds */
+/** Coefficient of variation threshold for HIGH confidence */
 const CV_HIGH_THRESHOLD = 0.1;
-const CV_MEDIUM_THRESHOLD = 0.15;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,8 +66,8 @@ export function normalizeMerchantKey(
  */
 function daysBetween(a: Date, b: Date): number {
   const msPerDay = 86_400_000;
-  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  const utcA = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const utcB = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
   return Math.round(Math.abs(utcB - utcA) / msPerDay);
 }
 
@@ -139,23 +138,15 @@ export function detectRecurrence(
   // Average amount (rounded to integer cents)
   const avgAmountCents = Math.round(mean);
 
-  // HIGH: monthly cadence AND tight amount consistency
-  if (hasMonthlyPattern && cv <= CV_HIGH_THRESHOLD) {
+  // Recurrence requires monthly cadence as a prerequisite.
+  // CV distinguishes HIGH from MEDIUM when cadence is present.
+  if (hasMonthlyPattern) {
+    const confidence: ClassificationConfidence =
+      cv <= CV_HIGH_THRESHOLD ? "HIGH" : "MEDIUM";
     return {
       merchantKey,
       isRecurring: true,
-      confidence: "HIGH",
-      avgAmountCents,
-      transactionCount: sorted.length,
-    };
-  }
-
-  // MEDIUM: monthly cadence OR moderate amount consistency
-  if (hasMonthlyPattern || cv <= CV_MEDIUM_THRESHOLD) {
-    return {
-      merchantKey,
-      isRecurring: true,
-      confidence: "MEDIUM",
+      confidence,
       avgAmountCents,
       transactionCount: sorted.length,
     };
