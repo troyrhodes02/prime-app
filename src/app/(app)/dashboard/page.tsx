@@ -16,9 +16,11 @@ import { ActivationCard } from "@/components/activation-card";
 import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { BaselineCard } from "@/components/baseline-card";
+import { ExpenseBreakdownCard } from "@/components/expense-breakdown-card";
 import { useAccountStatus } from "@/hooks/use-account-status";
 import { useRecentTransactions } from "@/hooks/use-recent-transactions";
 import { useBaseline } from "@/hooks/use-baseline";
+import { useExpenseClassification } from "@/hooks/use-expense-classification";
 
 function formatCurrency(cents: number): string {
   const dollars = cents / 100;
@@ -108,6 +110,8 @@ export default function DashboardPage() {
     mutate: recentMutate,
   } = useRecentTransactions();
   const { data: baseline, mutate: baselineMutate } = useBaseline();
+  const { data: classification, mutate: classificationMutate } =
+    useExpenseClassification();
 
   const firstItem = accountStatus?.items[0] ?? null;
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
@@ -141,8 +145,9 @@ export default function DashboardPage() {
       prevSyncActive.current = false;
       recentMutate();
       baselineMutate();
+      classificationMutate();
     }
-  }, [hasActiveSync, recentMutate, baselineMutate]);
+  }, [hasActiveSync, recentMutate, baselineMutate, classificationMutate]);
 
   const dashboardState: DashboardState = (() => {
     if (!hasConnectedAccounts) return "pre_connection";
@@ -292,6 +297,21 @@ export default function DashboardPage() {
               baseline.status === "ready" ? baseline.window_days : 0
             }
           />
+        )}
+
+        {baselineReady && classification && (
+          classification.status === "ready" ? (
+            <ExpenseBreakdownCard
+              status="ready"
+              fixedCents={classification.fixed_cents}
+              flexibleCents={classification.flexible_cents}
+              fixedPct={classification.fixed_pct}
+              flexiblePct={classification.flexible_pct}
+              monthlyIncomeCents={baseline.monthly_income_cents}
+            />
+          ) : (
+            <ExpenseBreakdownCard status="empty" />
+          )
         )}
 
         {renderMainCard()}
