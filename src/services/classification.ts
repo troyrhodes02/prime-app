@@ -393,8 +393,7 @@ function differenceInDaysClassification(a: Date, b: Date): number {
   return Math.floor((utcA - utcB) / msPerDay);
 }
 
-// TODO (PRI-35): Wire into sync pipeline (Step 3.6 after baseline)
-// and expose via GET /api/v1/expense-classification endpoint.
+
 
 /**
  * Full expense classification pipeline.
