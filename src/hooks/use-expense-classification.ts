@@ -9,6 +9,16 @@ type CategoryBreakdown = {
   pct: number;
 };
 
+type CurrentMonthBreakdown = {
+  fixed_cents: number;
+  flexible_cents: number;
+  fixed_pct: number;
+  flexible_pct: number;
+  transaction_count: number;
+  days_elapsed: number;
+  days_in_month: number;
+};
+
 type ClassificationReady = {
   status: "ready";
   fixed_cents: number;
@@ -20,6 +30,7 @@ type ClassificationReady = {
   window_days: number;
   transaction_count: number;
   computed_at: string;
+  current_month: CurrentMonthBreakdown;
 };
 
 type ClassificationInsufficientData = {

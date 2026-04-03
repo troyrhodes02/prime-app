@@ -16,9 +16,12 @@ import { ActivationCard } from "@/components/activation-card";
 import { ConnectedAccountsCard } from "@/components/connected-accounts-card";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { BaselineCard } from "@/components/baseline-card";
+import { ExpenseBreakdownCard } from "@/components/expense-breakdown-card";
+import { DashboardPeriodSelector } from "@/components/dashboard-period-selector";
 import { useAccountStatus } from "@/hooks/use-account-status";
 import { useRecentTransactions } from "@/hooks/use-recent-transactions";
-import { useBaseline } from "@/hooks/use-baseline";
+import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
+import type { DashboardPeriod } from "@/lib/dashboard-period";
 
 function formatCurrency(cents: number): string {
   const dollars = cents / 100;
@@ -101,13 +104,15 @@ type DashboardState =
   | "connected";
 
 export default function DashboardPage() {
+  const [period, setPeriod] = useState<DashboardPeriod>("this_month");
+
   const { data: accountStatus, mutate } = useAccountStatus();
   const {
     data: recentData,
     isLoading: recentLoading,
     mutate: recentMutate,
   } = useRecentTransactions();
-  const { data: baseline, mutate: baselineMutate } = useBaseline();
+  const { data: summary, mutate: summaryMutate } = useDashboardSummary(period);
 
   const firstItem = accountStatus?.items[0] ?? null;
   const hasConnectedAccounts = accountStatus?.has_connected_accounts ?? false;
@@ -132,7 +137,7 @@ export default function DashboardPage() {
     }
   }, [hasActiveSync, hasConnectedAccounts, latestSyncStatus]);
 
-  // Revalidate recent transactions and baseline when sync completes.
+  // Revalidate data when sync completes.
   const prevSyncActive = useRef(false);
   useEffect(() => {
     if (hasActiveSync) {
@@ -140,9 +145,9 @@ export default function DashboardPage() {
     } else if (prevSyncActive.current) {
       prevSyncActive.current = false;
       recentMutate();
-      baselineMutate();
+      summaryMutate();
     }
-  }, [hasActiveSync, recentMutate, baselineMutate]);
+  }, [hasActiveSync, recentMutate, summaryMutate]);
 
   const dashboardState: DashboardState = (() => {
     if (!hasConnectedAccounts) return "pre_connection";
@@ -152,10 +157,13 @@ export default function DashboardPage() {
     return "connected";
   })();
 
-  // Determine baseline-driven values for summary cards
-  const baselineReady =
-    dashboardState === "connected" &&
-    baseline?.status === "ready";
+  const summaryReady =
+    dashboardState === "connected" && summary?.status === "ready";
+
+  const isThisMonth = period === "this_month";
+  const summaryNote = isThisMonth
+    ? `Actual for ${summary?.period_label ?? "this month"}`
+    : "Estimated monthly rate";
 
   const handlePlaidSuccess = useCallback(
     async (publicToken: string, metadata: Record<string, unknown>) => {
@@ -251,13 +259,21 @@ export default function DashboardPage() {
   }
 
   const showBaselineCard =
-    dashboardState === "connected" &&
-    baseline != null &&
-    (baseline.status === "ready" || baseline.status === "insufficient_data");
+    dashboardState === "connected" && summary != null;
+
+  const showBreakdownCard =
+    summaryReady &&
+    (summary.fixed_cents > 0 || summary.flexible_cents > 0);
 
   return (
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {dashboardState === "connected" && (
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <DashboardPeriodSelector value={period} onChange={setPeriod} />
+          </Box>
+        )}
+
         <Box
           sx={{
             display: "grid",
@@ -267,31 +283,43 @@ export default function DashboardPage() {
         >
           <SummaryCard
             label="Monthly Income"
-            amount={baselineReady ? baseline.monthly_income_cents : null}
+            amount={summaryReady ? summary.income_cents : null}
             amountColor="success.main"
             prefix="+"
-            note="Estimated from recent activity"
+            note={summaryNote}
           />
           <SummaryCard
             label="Monthly Spending"
-            amount={baselineReady ? baseline.monthly_spending_cents : null}
+            amount={summaryReady ? summary.spending_cents : null}
             amountColor="error.main"
             prefix="-"
-            note="Estimated from recent activity"
+            note={summaryNote}
           />
           <SummaryCard label="Upcoming Bills" />
         </Box>
 
         {showBaselineCard && (
           <BaselineCard
-            status={baseline.status as "ready" | "insufficient_data"}
+            status={summary.status === "ready" ? "ready" : "insufficient_data"}
             availableCents={
-              baseline.status === "ready" ? baseline.available_cents : 0
+              summary.status === "ready" ? summary.available_cents : 0
             }
-            windowDays={
-              baseline.status === "ready" ? baseline.window_days : 0
-            }
+            windowDays={summary.window_days}
+            periodLabel={summary.period_label}
           />
+        )}
+
+        {showBreakdownCard ? (
+          <ExpenseBreakdownCard
+            status="ready"
+            fixedCents={summary.fixed_cents}
+            flexibleCents={summary.flexible_cents}
+            fixedPct={summary.fixed_pct}
+            flexiblePct={summary.flexible_pct}
+            periodLabel={summary.period_label}
+          />
+        ) : (
+          summaryReady && <ExpenseBreakdownCard status="empty" />
         )}
 
         {renderMainCard()}
