@@ -16,94 +16,13 @@ function formatCurrency(cents: number): string {
   });
 }
 
-function getMonthLabel(): string {
-  const now = new Date();
-  return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-
-function getComparisonInsight(
-  currentMonth: {
-    flexibleCents: number;
-    fixedCents: number;
-    daysElapsed: number;
-    daysInMonth: number;
-    transactionCount: number;
-  },
-  avgFlexibleCents: number,
-  avgFixedCents: number,
-  monthlyIncomeCents: number,
-): { text: string; color: string } {
-  // Warning: fixed > 85% of income (check against current month projected)
-  if (monthlyIncomeCents > 0 && currentMonth.daysElapsed >= 7) {
-    const projectedFixed =
-      (currentMonth.fixedCents / currentMonth.daysElapsed) *
-      currentMonth.daysInMonth;
-    const fixedOfIncomePct = Math.round(
-      (projectedFixed / monthlyIncomeCents) * 100,
-    );
-    if (fixedOfIncomePct > 85) {
-      return {
-        text: `Your fixed expenses are on pace to use ${fixedOfIncomePct}% of your income this month. Consider reviewing obligations.`,
-        color: "warning.main",
-      };
-    }
-  }
-
-  // Too early in month or no transactions for pace comparison
-  if (currentMonth.daysElapsed < 7 || currentMonth.transactionCount === 0) {
-    return {
-      text: `Spending so far in ${getMonthLabel()}.`,
-      color: "grey.500",
-    };
-  }
-
-  // Project current month flexible to full month and compare to 90-day average
-  if (avgFlexibleCents > 0) {
-    const projectedFlexible =
-      (currentMonth.flexibleCents / currentMonth.daysElapsed) *
-      currentMonth.daysInMonth;
-    const pctDiff = Math.round(
-      ((projectedFlexible - avgFlexibleCents) / avgFlexibleCents) * 100,
-    );
-
-    if (pctDiff >= 10) {
-      return {
-        text: `Flexible spending is trending ${pctDiff}% above your monthly average.`,
-        color: "grey.500",
-      };
-    }
-    if (pctDiff <= -10) {
-      return {
-        text: `Flexible spending is trending ${Math.abs(pctDiff)}% below your monthly average.`,
-        color: "grey.500",
-      };
-    }
-  }
-
-  return {
-    text: "Your spending this month is in line with your usual pattern.",
-    color: "grey.500",
-  };
-}
-
-interface CurrentMonthData {
-  fixedCents: number;
-  flexibleCents: number;
-  fixedPct: number;
-  flexiblePct: number;
-  transactionCount: number;
-  daysElapsed: number;
-  daysInMonth: number;
-}
-
 interface ExpenseBreakdownCardProps {
   status: "ready" | "empty";
   fixedCents?: number;
   flexibleCents?: number;
   fixedPct?: number;
   flexiblePct?: number;
-  monthlyIncomeCents?: number;
-  currentMonth?: CurrentMonthData;
+  periodLabel?: string;
 }
 
 export function ExpenseBreakdownCard({
@@ -112,8 +31,7 @@ export function ExpenseBreakdownCard({
   flexibleCents = 0,
   fixedPct = 0,
   flexiblePct = 0,
-  monthlyIncomeCents = 0,
-  currentMonth,
+  periodLabel,
 }: ExpenseBreakdownCardProps) {
   if (status === "empty") {
     return (
@@ -187,26 +105,6 @@ export function ExpenseBreakdownCard({
     );
   }
 
-  // Determine display values: current month if available, otherwise 90-day average
-  const hasCurrentMonth = currentMonth && currentMonth.transactionCount > 0;
-
-  const displayFixedCents = hasCurrentMonth ? currentMonth.fixedCents : fixedCents;
-  const displayFlexibleCents = hasCurrentMonth ? currentMonth.flexibleCents : flexibleCents;
-  const displayFixedPct = hasCurrentMonth ? currentMonth.fixedPct : fixedPct;
-  const displayFlexiblePct = hasCurrentMonth ? currentMonth.flexiblePct : flexiblePct;
-
-  const insight = hasCurrentMonth
-    ? getComparisonInsight(
-        currentMonth,
-        flexibleCents,
-        fixedCents,
-        monthlyIncomeCents,
-      )
-    : {
-        text: `Based on your spending over the last ${Math.round(fixedCents + flexibleCents > 0 ? 90 : 0)} days.`,
-        color: "grey.500",
-      };
-
   return (
     <Card variant="outlined" sx={{ p: 3 }}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -216,12 +114,12 @@ export function ExpenseBreakdownCard({
         >
           Spending Breakdown
         </Typography>
-        {hasCurrentMonth && (
+        {periodLabel && (
           <Typography
             variant="caption"
             sx={{ color: "grey.500", fontWeight: 400 }}
           >
-            {getMonthLabel()}
+            {periodLabel}
           </Typography>
         )}
       </Box>
@@ -236,8 +134,8 @@ export function ExpenseBreakdownCard({
           overflow: "hidden",
         }}
       >
-        <Box sx={{ width: `${displayFixedPct}%`, bgcolor: "grey.400" }} />
-        <Box sx={{ width: `${displayFlexiblePct}%`, bgcolor: "primary.main" }} />
+        <Box sx={{ width: `${fixedPct}%`, bgcolor: "grey.400" }} />
+        <Box sx={{ width: `${flexiblePct}%`, bgcolor: "primary.main" }} />
       </Box>
 
       {/* Amounts */}
@@ -265,7 +163,7 @@ export function ExpenseBreakdownCard({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatCurrency(displayFixedCents)}
+            {formatCurrency(fixedCents)}
           </Typography>
           <Typography
             variant="body2"
@@ -276,7 +174,7 @@ export function ExpenseBreakdownCard({
               mt: 0.25,
             }}
           >
-            {displayFixedPct}% of spending
+            {fixedPct}% of spending
           </Typography>
         </Box>
         <Box sx={{ textAlign: "right" }}>
@@ -296,7 +194,7 @@ export function ExpenseBreakdownCard({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {formatCurrency(displayFlexibleCents)}
+            {formatCurrency(flexibleCents)}
           </Typography>
           <Typography
             variant="body2"
@@ -307,27 +205,21 @@ export function ExpenseBreakdownCard({
               mt: 0.25,
             }}
           >
-            {displayFlexiblePct}% of spending
+            {flexiblePct}% of spending
           </Typography>
         </Box>
       </Box>
 
       <Divider sx={{ my: 2 }} />
 
-      {/* Insight + View Budget link */}
+      {/* View Budget link */}
       <Box
         sx={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
         }}
       >
-        <Typography
-          variant="body2"
-          sx={{ fontSize: 13, color: insight.color, lineHeight: 1.6 }}
-        >
-          {insight.text}
-        </Typography>
         <Typography
           component={Link}
           href="/budget"
@@ -338,7 +230,6 @@ export function ExpenseBreakdownCard({
             color: "primary.main",
             textDecoration: "none",
             whiteSpace: "nowrap",
-            ml: 2,
             "&:hover": { textDecoration: "underline" },
           }}
         >

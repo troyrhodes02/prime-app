@@ -116,7 +116,12 @@ async function queryCurrentMonth(userId: string) {
       pending: false,
       transactionType: "EXPENSE",
       expenseType: { not: null },
-      date: { gte: monthStart },
+      date: {
+        gte: monthStart,
+        lt: new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+        ),
+      },
     },
     select: {
       amountCents: true,
