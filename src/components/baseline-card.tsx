@@ -17,9 +17,10 @@ interface BaselineCardProps {
   status: "ready" | "insufficient_data";
   availableCents: number;
   windowDays: number;
+  periodLabel?: string;
 }
 
-export function BaselineCard({ status, availableCents, windowDays }: BaselineCardProps) {
+export function BaselineCard({ status, availableCents, windowDays, periodLabel }: BaselineCardProps) {
   if (status === "insufficient_data") {
     return (
       <Card variant="outlined" sx={{ py: 4, px: 3, textAlign: "center" }}>
@@ -51,12 +52,17 @@ export function BaselineCard({ status, availableCents, windowDays }: BaselineCar
   }
 
   const isNegative = availableCents < 0;
+  const isExact = periodLabel === "This Month";
 
   const explanation = isNegative
-    ? `Your recent spending has exceeded your income. This is based on the last ${windowDays} days of activity.`
-    : `Based on your recent income and spending patterns over the last ${windowDays} days.`;
+    ? isExact
+      ? `Your spending has exceeded your income so far this month.`
+      : `Your recent spending has exceeded your income. This is based on the last ${windowDays} days of activity.`
+    : isExact
+      ? `Income minus spending for ${periodLabel ?? "this month"}.`
+      : `Based on your recent income and spending patterns over the last ${windowDays} days.`;
 
-  const prefix = isNegative ? "-" : "~";
+  const prefix = isNegative ? "-" : isExact ? "" : "~";
 
   return (
     <Card variant="outlined" sx={{ py: 4, px: 3, textAlign: "center" }}>

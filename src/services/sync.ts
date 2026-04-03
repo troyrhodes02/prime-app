@@ -4,6 +4,7 @@ import { decrypt } from "@/lib/encryption";
 import { AccountType, type PrismaClient } from "@prisma/client";
 import { runNormalizationPipeline } from "@/services/normalization";
 import { computeBaseline } from "@/services/baseline";
+import { computeExpenseClassification } from "@/services/classification";
 
 export function toCents(amount: number | null | undefined): number | null {
   if (amount === null || amount === undefined) return null;
@@ -184,6 +185,16 @@ export async function runSyncPipeline(syncJobId: string): Promise<void> {
     } catch (error) {
       console.error(
         `Baseline computation failed for syncJob=${syncJobId}:`,
+        error instanceof Error ? error.message : "Unknown error",
+      );
+    }
+
+    // Step 3.6: Compute expense classification (non-blocking)
+    try {
+      await computeExpenseClassification(syncJob.userId);
+    } catch (error) {
+      console.error(
+        `Expense classification failed for syncJob=${syncJobId}:`,
         error instanceof Error ? error.message : "Unknown error",
       );
     }

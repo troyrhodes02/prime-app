@@ -5,7 +5,7 @@ import type {
   TransactionCategory,
 } from "@prisma/client";
 
-const TRANSFER_PATTERNS = [
+export const TRANSFER_PATTERNS = [
   /transfer/i,
   /xfer/i,
   /\bmove\b.*\b(funds|money)\b/i,
@@ -14,12 +14,12 @@ const TRANSFER_PATTERNS = [
   /^wire transfer/i,
 ];
 
-const DAYS_PER_MONTH = 30.44;
+export const DAYS_PER_MONTH = 30.44;
 const MIN_DAY_SPAN = 30;
 const MIN_SPENDING_DAYS_FOR_TRIM = 14;
 const TRIM_PERCENTAGE = 0.05;
 
-interface TransactionRow {
+export interface TransactionRow {
   id: string;
   amountCents: number;
   date: Date;
@@ -29,19 +29,19 @@ interface TransactionRow {
   financialAccountId: string;
 }
 
-function formatDateKey(date: Date): string {
+export function formatDateKey(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-function isTransferByName(displayName: string): boolean {
+export function isTransferByName(displayName: string): boolean {
   return TRANSFER_PATTERNS.some((p) => p.test(displayName));
 }
 
-function isTransferByCategory(category: TransactionCategory): boolean {
+export function isTransferByCategory(category: TransactionCategory): boolean {
   return category === "TRANSFER";
 }
 
-function detectReciprocalTransfers(txns: TransactionRow[]): Set<string> {
+export function detectReciprocalTransfers(txns: TransactionRow[]): Set<string> {
   const transferIds = new Set<string>();
 
   const byDate = new Map<string, TransactionRow[]>();
@@ -73,10 +73,10 @@ function detectReciprocalTransfers(txns: TransactionRow[]): Set<string> {
   return transferIds;
 }
 
-function differenceInDays(a: Date, b: Date): number {
+export function differenceInDays(a: Date, b: Date): number {
   const msPerDay = 86400000;
-  const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-  const utcB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  const utcA = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const utcB = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
   return Math.floor((utcA - utcB) / msPerDay);
 }
 
